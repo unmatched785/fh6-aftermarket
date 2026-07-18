@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using Fh6Aftermarket.Capture;
+using Fh6Aftermarket.Ocr;
 using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Workflow;
 
@@ -24,6 +25,22 @@ if (args.Length == 2 && args[0] == "--capture-foreground")
     return;
 }
 
+if (args.Length == 4 && args[0] == "--targets" && args[2] == "--match-text")
+{
+    var catalog = TargetCatalog.Load(args[1]);
+    var matches = new TargetTextMatcher(catalog).Match(args[3]);
+    Console.WriteLine($"Target matches: {matches.Count}");
+
+    foreach (var match in matches)
+    {
+        Console.WriteLine(
+            $"- {match.Target.DisplayName} via '{match.Alias}' " +
+            $"score={match.Score:F3} exact={match.Exact}");
+    }
+
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--config" && args[2] == "--validate")
 {
     var document = WorkflowLoader.Load(args[1]);
@@ -41,6 +58,7 @@ Console.WriteLine("FH6 Aftermarket Watcher - observer mode (input disabled)");
 Console.WriteLine("Usage:");
 Console.WriteLine("  --inspect-image <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
+Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
 Console.WriteLine("  --config <workflow.json> --validate");
 Console.WriteLine("  --config <workflow.json> --print-flow <flow-id>");
 

@@ -1,5 +1,6 @@
 using System.Drawing;
 using Fh6Aftermarket.Domain;
+using Fh6Aftermarket.Ocr;
 using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Workflow;
 
@@ -25,6 +26,17 @@ CheckFlow(workflow, "kor-to-eng", expectedStepCount: 9);
 CheckFlow(workflow, "eng-to-kor", expectedStepCount: 9);
 CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19);
 CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8);
+
+var targetsPath = Path.Combine(repoRoot, "config", "targets.json");
+var targets = TargetCatalog.Load(targetsPath);
+var matcher = new TargetTextMatcher(targets);
+
+CheckTarget("Aventador '12", "2012-lamborghini-aventador-lp700-4");
+CheckTarget("Lambo Sesto", "2011-lamborghini-sesto-elemento");
+CheckTarget("F8 Tributo '19", "2019-ferrari-f8-tributo");
+CheckTarget("Diab1o GTR", "1999-lamborghini-diablo-gtr");
+CheckNoTarget("Ferrari F12tdf");
+CheckNoTarget("Urus '19");
 
 var safetyPath = Path.Combine(repoRoot, "config", "safety.json");
 var safetyJson = File.ReadAllText(safetyPath);
@@ -52,6 +64,7 @@ Console.WriteLine("- ultrawide rejection");
 Console.WriteLine("- four workflow definitions");
 Console.WriteLine("- automation disabled by default");
 Console.WriteLine("- synthetic marker and selected-card detection");
+Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
 
 void CheckGeometry(int width, int height, PixelPoint canonical, PixelPoint expected)
 {
@@ -125,6 +138,24 @@ void CheckFlow(WorkflowDocument document, string id, int expectedStepCount)
     if (flow.Steps.Count != expectedStepCount)
     {
         failures.Add($"Workflow {id} expected {expectedStepCount} steps, got {flow.Steps.Count}.");
+    }
+}
+
+void CheckTarget(string text, string expectedId)
+{
+    var matches = matcher.Match(text);
+    if (!matches.Any(match => match.Target.Id == expectedId))
+    {
+        failures.Add($"Expected target '{expectedId}' for text '{text}'.");
+    }
+}
+
+void CheckNoTarget(string text)
+{
+    var matches = matcher.Match(text);
+    if (matches.Count != 0)
+    {
+        failures.Add($"Expected no target for text '{text}', got {matches[0].Target.Id}.");
     }
 }
 

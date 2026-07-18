@@ -21,6 +21,7 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 16:9 좌표 정규화 모델
 - 설정 파일 구조 및 자체 검사 프로그램
 - 화면 앵커와 다음 구현 단계 문서
+- 여섯 한정 차량의 정식명·화면 축약명 사전과 OCR 오인식 허용 매처
 
 ## 로컬 검사
 
@@ -47,6 +48,12 @@ C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Af
 
 ```powershell
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --capture-foreground .\captures\foreground.png
+```
+
+OCR에서 얻었다고 가정한 텍스트를 목표 목록과 대조할 수 있습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --targets .\config\targets.json --match-text "Lambo Sesto"
 ```
 
 ## 다음 단계
