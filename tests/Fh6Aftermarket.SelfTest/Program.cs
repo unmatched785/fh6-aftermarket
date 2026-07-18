@@ -17,6 +17,7 @@ if (ScreenGeometry.TryCreate(3440, 1440, out _))
 
 CheckSyntheticMarker();
 CheckSyntheticSelectedCard();
+CheckSyntheticSellingBanner();
 
 var repoRoot = FindRepoRoot();
 var workflowPath = Path.Combine(repoRoot, "config", "workflow.json");
@@ -64,6 +65,7 @@ Console.WriteLine("- ultrawide rejection");
 Console.WriteLine("- four workflow definitions");
 Console.WriteLine("- automation disabled by default");
 Console.WriteLine("- synthetic marker and selected-card detection");
+Console.WriteLine("- synthetic selling-banner detection");
 Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
 
 void CheckGeometry(int width, int height, PixelPoint canonical, PixelPoint expected)
@@ -121,6 +123,26 @@ void CheckSyntheticSelectedCard()
         failures.Add(
             $"Synthetic selected card expected one selected candidate, got " +
             $"{observation.Candidates.Count} / {observation.State}.");
+    }
+}
+
+void CheckSyntheticSellingBanner()
+{
+    using var bitmap = new Bitmap(1920, 1080);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        graphics.Clear(Color.FromArgb(35, 45, 55));
+        using var green = new SolidBrush(Color.FromArgb(0, 160, 90));
+        graphics.FillEllipse(green, 520, 150, 82, 82);
+        graphics.FillRectangle(green, 620, 200, 330, 5);
+    }
+
+    var regions = SellingBannerDetector.Find(bitmap);
+    if (regions.Count != 1 || regions[0].GreenLine.Width != 330)
+    {
+        failures.Add(
+            $"Synthetic selling banner expected one 330px line, got " +
+            $"{regions.Count} / {(regions.Count > 0 ? regions[0].GreenLine.Width : 0)}.");
     }
 }
 

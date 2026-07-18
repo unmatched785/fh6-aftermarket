@@ -22,6 +22,8 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 설정 파일 구조 및 자체 검사 프로그램
 - 화면 앵커와 다음 구현 단계 문서
 - 여섯 한정 차량의 정식명·화면 축약명 사전과 OCR 오인식 허용 매처
+- 녹색 판매 배너 검출, 차량명 영역 분리, Tesseract OCR
+- `TargetFound` / `Clear` / `Uncertain` 안전 판정
 
 ## 로컬 검사
 
@@ -56,14 +58,26 @@ OCR에서 얻었다고 가정한 텍스트를 목표 목록과 대조할 수 있
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --targets .\config\targets.json --match-text "Lambo Sesto"
 ```
 
+실제 차량 화면 OCR에는 Scoop의 Tesseract 본체와 언어 데이터가 필요합니다.
+
+```powershell
+scoop install tesseract
+scoop install tesseract-languages
+```
+
+저장된 애프터마켓 화면에서 판매 배너를 세고 차량명을 판독할 수 있습니다. 앱은 Scoop
+언어 데이터 경로를 명시적으로 전달하므로 전역 `TESSDATA_PREFIX` 설정은 필요하지 않습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --analyze-aftermarket-image .\captures\aftermarket.png --targets .\config\targets.json
+```
+
 ## 다음 단계
 
-1. 실제 화면을 캡처하는 읽기 전용 관찰 모드
-2. 언어 목록, 지도 필터, 애프터마켓 아이콘 상태 감지
-3. 차량명 OCR과 목표/비목표/불확실 판정
-4. 입력 없는 실게임 검증
-5. 단 한 번만 실행되는 재시작 입력
-6. 제한 횟수 반복과 긴급 중단
+1. 전경 게임 창을 주기적으로 읽는 입력 없는 감시 모드
+2. 목표 없는 실제 화면을 추가 확보해 `Clear` 완전성 판정 검증
+3. 단 한 번만 실행되는 재시작 입력
+4. 제한 횟수 반복과 긴급 중단
 
 자세한 수동 흐름은 [docs/manual-flow.md](docs/manual-flow.md), 화면 인식 계획은
 [docs/vision-anchors.md](docs/vision-anchors.md)를 참고합니다.

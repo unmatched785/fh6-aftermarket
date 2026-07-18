@@ -41,6 +41,26 @@ if (args.Length == 4 && args[0] == "--targets" && args[2] == "--match-text")
     return;
 }
 
+if (args.Length is 4 or 6 && args[0] == "--analyze-aftermarket-image" && args[2] == "--targets")
+{
+    var tessdataPath = args.Length == 6 && args[4] == "--tessdata-dir"
+        ? args[5]
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "scoop",
+            "apps",
+            "tesseract-languages",
+            "current");
+
+    using var image = new Bitmap(args[1]);
+    var catalog = TargetCatalog.Load(args[3]);
+    var analyzer = new AftermarketImageAnalyzer(
+        new TesseractCliRecognizer("tesseract", tessdataPath),
+        new TargetTextMatcher(catalog));
+    PrintAftermarketScan(analyzer.Analyze(image));
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--config" && args[2] == "--validate")
 {
     var document = WorkflowLoader.Load(args[1]);
@@ -59,6 +79,7 @@ Console.WriteLine("Usage:");
 Console.WriteLine("  --inspect-image <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
 Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
+Console.WriteLine("  --analyze-aftermarket-image <image> --targets <targets.json> [--tessdata-dir <dir>]");
 Console.WriteLine("  --config <workflow.json> --validate");
 Console.WriteLine("  --config <workflow.json> --print-flow <flow-id>");
 
@@ -106,5 +127,31 @@ static void PrintObservation(ScreenObservation observation)
             $"{candidate.Bounds.Width},{candidate.Bounds.Height}) " +
             $"purple={candidate.PurplePixelCount} " +
             $"sat={candidate.MeanSaturation:F3} value={candidate.MeanValue:F3}");
+    }
+}
+
+static void PrintAftermarketScan(AftermarketScanResult result)
+{
+    Console.WriteLine($"Scan state: {result.State}");
+    Console.WriteLine($"Selling banners: {result.Banners.Count}");
+    Console.WriteLine($"Readable banners: {result.ReadableBannerCount}");
+    Console.WriteLine($"Target banners: {result.TargetCount}");
+
+    for (var index = 0; index < result.Banners.Count; index++)
+    {
+        var banner = result.Banners[index];
+        Console.WriteLine(
+            $"  #{index + 1}: line=({banner.Region.GreenLine.X},{banner.Region.GreenLine.Y}," +
+            $"{banner.Region.GreenLine.Width},{banner.Region.GreenLine.Height}) " +
+            $"text=({banner.Region.TextRegion.X},{banner.Region.TextRegion.Y}," +
+            $"{banner.Region.TextRegion.Width},{banner.Region.TextRegion.Height})");
+        Console.WriteLine($"      OCR: {banner.Recognition.CombinedText}");
+
+        foreach (var match in banner.TargetMatches)
+        {
+            Console.WriteLine(
+                $"      TARGET: {match.Target.DisplayName} via '{match.Alias}' " +
+                $"score={match.Score:F3}");
+        }
     }
 }
