@@ -1,0 +1,50 @@
+# FH6 Aftermarket Watcher
+
+FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가 없을 때만
+`한국어 ↔ English US` 언어 변경을 이용해 클라이언트를 재시작하는 로컬 도구입니다.
+
+현재 단계는 **명세·검증 전용**입니다. 실제 키나 마우스 입력은 보내지 않습니다.
+
+## 안전 원칙
+
+- 지원 언어는 `KOR`와 `ENG`뿐입니다.
+- 모든 화면 좌표는 1920×1080 게임 클라이언트 영역을 기준으로 정규화합니다.
+- FHD, QHD, 4K의 16:9 화면만 허용합니다.
+- 화면 상태나 OCR 결과가 불확실하면 재시작하지 않고 정지합니다.
+- F2는 향후 모든 상태에서 작동하는 긴급 중단키로 사용합니다.
+- 원본 캡처와 실행 로그는 개인정보 보호를 위해 Git에 포함하지 않습니다.
+
+## 현재 포함된 것
+
+- 사용자가 검증한 KOR→ENG 및 ENG→KOR 재시작 키 순서
+- 재시작 후 지도 필터 적용 키 순서
+- 16:9 좌표 정규화 모델
+- 설정 파일 구조 및 자체 검사 프로그램
+- 화면 앵커와 다음 구현 단계 문서
+
+## 로컬 검사
+
+이 PC에서는 Scoop SDK를 사용합니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe build .\Fh6Aftermarket.slnx
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\tests\Fh6Aftermarket.SelfTest\Fh6Aftermarket.SelfTest.csproj
+```
+
+수동 흐름을 사람이 읽을 수 있는 형태로 확인할 수도 있습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --config .\config\workflow.json --print-flow kor-to-eng
+```
+
+## 다음 단계
+
+1. 실제 화면을 캡처하는 읽기 전용 관찰 모드
+2. 언어 목록, 지도 필터, 애프터마켓 아이콘 상태 감지
+3. 차량명 OCR과 목표/비목표/불확실 판정
+4. 입력 없는 실게임 검증
+5. 단 한 번만 실행되는 재시작 입력
+6. 제한 횟수 반복과 긴급 중단
+
+자세한 수동 흐름은 [docs/manual-flow.md](docs/manual-flow.md), 화면 인식 계획은
+[docs/vision-anchors.md](docs/vision-anchors.md)를 참고합니다.

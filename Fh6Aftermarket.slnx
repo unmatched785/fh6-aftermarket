@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Fh6Aftermarket/Fh6Aftermarket.csproj" />
+  <Project Path="tests/Fh6Aftermarket.SelfTest/Fh6Aftermarket.SelfTest.csproj" />
+</Solution>

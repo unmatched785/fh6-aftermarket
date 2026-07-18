@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "flows": [
+    {
+      "id": "kor-to-eng",
+      "fromLanguage": "kor",
+      "toLanguage": "eng",
+      "steps": [
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "일시 정지 메뉴 열기" },
+        { "kind": "key", "key": "Down", "repeat": 1, "label": "설정 행으로 이동" },
+        { "kind": "key", "key": "Right", "repeat": 1, "label": "설정 타일로 이동" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "설정 열기" },
+        { "kind": "key", "key": "Up", "repeat": 2, "label": "언어 선택 항목으로 이동" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "언어 목록 열기" },
+        { "kind": "key", "key": "Down", "repeat": 6, "label": "English US로 이동" },
+        { "kind": "key", "key": "Down", "repeat": 1, "label": "재시작 확인 선택" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "언어 변경 및 재시작" }
+      ]
+    },
+    {
+      "id": "eng-to-kor",
+      "fromLanguage": "eng",
+      "toLanguage": "kor",
+      "steps": [
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "Open pause menu" },
+        { "kind": "key", "key": "Down", "repeat": 1, "label": "Move to Settings row" },
+        { "kind": "key", "key": "Right", "repeat": 1, "label": "Move to Settings tile" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Open Settings" },
+        { "kind": "key", "key": "Up", "repeat": 2, "label": "Move to Language Select" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Open language list" },
+        { "kind": "key", "key": "Up", "repeat": 4, "label": "Move toward Korean" },
+        { "kind": "key", "key": "Down", "repeat": 1, "label": "Select restart confirmation" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Change language and restart" }
+      ]
+    },
+    {
+      "id": "post-restart-to-filtered-map",
+      "fromLanguage": "any-supported",
+      "toLanguage": "unchanged",
+      "steps": [
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "첫 시작 화면 진행" },
+        { "kind": "wait", "anchor": "loading-1-complete", "timeoutMs": 180000, "label": "첫 로딩 완료 확인" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "두 번째 시작 화면 진행" },
+        { "kind": "wait", "anchor": "loading-2-complete", "timeoutMs": 180000, "label": "두 번째 로딩 완료 확인" },
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "초기 안내 닫기" },
+        { "kind": "wait", "anchor": "loading-3-complete", "timeoutMs": 180000, "label": "세 번째 로딩 완료 확인" },
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "남은 안내 닫기" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "지도 진입 흐름 진행" },
+        { "kind": "key", "key": "PageDown", "repeat": 1, "label": "지도 필터 열기" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "현재 필터 항목 전환" },
+        { "kind": "key", "key": "Enter", "repeat": 2, "label": "필터 선택 흐름 진행" },
+        { "kind": "key", "key": "Down", "repeat": 4, "label": "Evolving World로 이동" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Evolving World 선택" },
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "필터 닫기" },
+        { "kind": "wait", "anchor": "filtered-map-translucent-marker", "timeoutMs": 30000, "label": "필터 적용 및 반투명 아이콘 확인" },
+        { "kind": "key", "key": "Escape", "repeat": 1, "label": "지도 닫기" },
+        { "kind": "wait", "anchor": "map-closed-state", "timeoutMs": 30000, "label": "지도가 닫힌 상태 확인" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "지도 다시 열기" },
+        { "kind": "wait", "anchor": "aftermarket-map-marker-clear", "timeoutMs": 30000, "label": "선명한 애프터마켓 아이콘 확인" }
+      ]
+    },
+    {
+      "id": "open-aftermarket-location",
+      "fromLanguage": "any-supported",
+      "toLanguage": "unchanged",
+      "steps": [
+        { "kind": "detect", "anchor": "aftermarket-map-marker-clear", "timeoutMs": 30000, "label": "선명한 보라색 애프터마켓 아이콘 찾기" },
+        { "kind": "mouse", "target": "aftermarket-map-marker-center", "label": "아이콘 중심으로 커서 이동" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "애프터마켓 아이콘 선택" },
+        { "kind": "wait", "anchor": "aftermarket-location-card", "timeoutMs": 10000, "label": "애프터마켓 정보 카드 확인" },
+        { "kind": "key", "key": "X", "repeat": 1, "label": "빠른 이동" },
+        { "kind": "wait", "anchor": "fast-travel-confirmation", "timeoutMs": 10000, "label": "빠른 이동 확인창 확인" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "빠른 이동 확인" },
+        { "kind": "wait", "anchor": "aftermarket-arrival", "timeoutMs": 180000, "label": "애프터마켓 도착 확인" }
+      ]
+    }
+  ]
+}
