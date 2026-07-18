@@ -2,7 +2,9 @@ using System.Drawing;
 using Fh6Aftermarket.Domain;
 using Fh6Aftermarket.Ocr;
 using Fh6Aftermarket.Vision;
+using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
+using Fh6Aftermarket.Capture;
 
 var failures = new List<string>();
 
@@ -18,6 +20,8 @@ if (ScreenGeometry.TryCreate(3440, 1440, out _))
 CheckSyntheticMarker();
 CheckSyntheticSelectedCard();
 CheckSyntheticSellingBanner();
+CheckReadOnlyWatcherTitleGuard();
+CheckReadOnlyWatcherTargetStop();
 
 var repoRoot = FindRepoRoot();
 var workflowPath = Path.Combine(repoRoot, "config", "workflow.json");
@@ -66,6 +70,7 @@ Console.WriteLine("- four workflow definitions");
 Console.WriteLine("- automation disabled by default");
 Console.WriteLine("- synthetic marker and selected-card detection");
 Console.WriteLine("- synthetic selling-banner detection");
+Console.WriteLine("- read-only watcher title guard and target stop");
 Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
 
 void CheckGeometry(int width, int height, PixelPoint canonical, PixelPoint expected)
@@ -144,6 +149,53 @@ void CheckSyntheticSellingBanner()
             $"Synthetic selling banner expected one 330px line, got " +
             $"{regions.Count} / {(regions.Count > 0 ? regions[0].GreenLine.Width : 0)}.");
     }
+}
+
+void CheckReadOnlyWatcherTitleGuard()
+{
+    var analyzerWasCalled = false;
+    var watcher = new ReadOnlyForegroundWatcher(
+        _ =>
+        {
+            analyzerWasCalled = true;
+            return new AftermarketScanResult(AftermarketScanState.Uncertain, []);
+        },
+        new ReadOnlyWatchOptions("Forza", 250, 1),
+        _ => { },
+        () => new CapturedWindow("Different application", CreateSyntheticWindow()));
+
+    var result = watcher.Run(CancellationToken.None);
+    if (result.Outcome != ReadOnlyWatchOutcome.TimedOut || analyzerWasCalled)
+    {
+        failures.Add(
+            $"Watcher title guard expected TimedOut without analysis, got " +
+            $"{result.Outcome} / analyzerCalled={analyzerWasCalled}.");
+    }
+}
+
+void CheckReadOnlyWatcherTargetStop()
+{
+    var watcher = new ReadOnlyForegroundWatcher(
+        _ => new AftermarketScanResult(AftermarketScanState.TargetFound, []),
+        new ReadOnlyWatchOptions("Forza", 250, 3),
+        _ => { },
+        () => new CapturedWindow("Forza Horizon", CreateSyntheticWindow()));
+
+    var result = watcher.Run(CancellationToken.None);
+    if (result.Outcome != ReadOnlyWatchOutcome.TargetFound || result.SamplesTaken != 1)
+    {
+        failures.Add(
+            $"Watcher expected immediate TargetFound, got " +
+            $"{result.Outcome} after {result.SamplesTaken} sample(s).");
+    }
+}
+
+Bitmap CreateSyntheticWindow()
+{
+    var bitmap = new Bitmap(1920, 1080);
+    using var graphics = Graphics.FromImage(bitmap);
+    graphics.Clear(Color.Black);
+    return bitmap;
 }
 
 void CheckFlow(WorkflowDocument document, string id, int expectedStepCount)

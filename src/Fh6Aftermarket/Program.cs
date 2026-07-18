@@ -3,6 +3,7 @@ using System.Drawing.Imaging;
 using Fh6Aftermarket.Capture;
 using Fh6Aftermarket.Ocr;
 using Fh6Aftermarket.Vision;
+using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
 
 if (args.Length == 2 && args[0] == "--inspect-image")
@@ -61,6 +62,36 @@ if (args.Length is 4 or 6 && args[0] == "--analyze-aftermarket-image" && args[2]
     return;
 }
 
+if (args.Length >= 3 && args[0] == "--watch-foreground" && args[1] == "--targets")
+{
+    var tessdataPath = GetOption(args, "--tessdata-dir")
+        ?? GetDefaultTessdataPath();
+    var titleText = GetOption(args, "--title-contains") ?? "Forza";
+    var intervalMilliseconds = GetIntegerOption(args, "--interval-ms", 1_000);
+    var maxSamples = GetIntegerOption(args, "--max-samples", 120);
+
+    var catalog = TargetCatalog.Load(args[2]);
+    var analyzer = new AftermarketImageAnalyzer(
+        new TesseractCliRecognizer("tesseract", tessdataPath),
+        new TargetTextMatcher(catalog));
+    var watcher = new ReadOnlyForegroundWatcher(
+        analyzer.Analyze,
+        new ReadOnlyWatchOptions(titleText, intervalMilliseconds, maxSamples),
+        Console.WriteLine);
+
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        cancellation.Cancel();
+    };
+
+    Console.WriteLine("Read-only foreground watch started. No keyboard or mouse input will be sent.");
+    var watchResult = watcher.Run(cancellation.Token);
+    Console.WriteLine($"Watch outcome: {watchResult.Outcome} after {watchResult.SamplesTaken} sample(s).");
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--config" && args[2] == "--validate")
 {
     var document = WorkflowLoader.Load(args[1]);
@@ -80,6 +111,7 @@ Console.WriteLine("  --inspect-image <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
 Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
 Console.WriteLine("  --analyze-aftermarket-image <image> --targets <targets.json> [--tessdata-dir <dir>]");
+Console.WriteLine("  --watch-foreground --targets <targets.json> [--title-contains <text>] [--interval-ms <n>] [--max-samples <n>]");
 Console.WriteLine("  --config <workflow.json> --validate");
 Console.WriteLine("  --config <workflow.json> --print-flow <flow-id>");
 
@@ -154,4 +186,43 @@ static void PrintAftermarketScan(AftermarketScanResult result)
                 $"score={match.Score:F3}");
         }
     }
+}
+
+static string GetDefaultTessdataPath()
+{
+    return Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "scoop",
+        "apps",
+        "tesseract-languages",
+        "current");
+}
+
+static string? GetOption(string[] arguments, string name)
+{
+    var index = Array.FindIndex(arguments, value => value == name);
+    if (index < 0)
+    {
+        return null;
+    }
+
+    if (index + 1 >= arguments.Length || arguments[index + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"Missing value for {name}.");
+    }
+
+    return arguments[index + 1];
+}
+
+static int GetIntegerOption(string[] arguments, string name, int defaultValue)
+{
+    var text = GetOption(arguments, name);
+    if (text is null)
+    {
+        return defaultValue;
+    }
+
+    return int.TryParse(text, out var value)
+        ? value
+        : throw new InvalidOperationException($"Invalid integer for {name}: {text}");
 }

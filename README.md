@@ -72,6 +72,14 @@ scoop install tesseract-languages
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --analyze-aftermarket-image .\captures\aftermarket.png --targets .\config\targets.json
 ```
 
+전경 게임 창을 입력 없이 감시할 수도 있습니다. 창 제목에 `Forza`가 포함되고 클라이언트가
+16:9일 때만 OCR을 실행합니다. 목표를 찾거나, 판매 배너가 보이는데 OCR이 불완전하거나,
+동일한 `Clear` 판정이 2회 연속 나오면 종료합니다. `Ctrl+C`로 언제든 끝낼 수 있습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --watch-foreground --targets .\config\targets.json --title-contains Forza --max-samples 120
+```
+
 ## 다음 단계
 
 1. 전경 게임 창을 주기적으로 읽는 입력 없는 감시 모드
