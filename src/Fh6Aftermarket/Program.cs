@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using Fh6Aftermarket.Capture;
+using Fh6Aftermarket.Input;
 using Fh6Aftermarket.Ocr;
+using Fh6Aftermarket.Safety;
 using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
@@ -92,6 +94,47 @@ if (args.Length >= 3 && args[0] == "--watch-foreground" && args[1] == "--targets
     return;
 }
 
+if (args.Contains("--run-one-shot", StringComparer.Ordinal))
+{
+    const string acknowledgement = "FH6_ONE_SHOT";
+    var suppliedAcknowledgement = GetRequiredOption(args, "--acknowledge-live-input");
+    if (!string.Equals(suppliedAcknowledgement, acknowledgement, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"Live input acknowledgement must be exactly: {acknowledgement}");
+    }
+
+    var workflow = WorkflowLoader.Load(GetRequiredOption(args, "--config"));
+    var flowId = GetRequiredOption(args, "--flow");
+    var flow = workflow.Flows.SingleOrDefault(item =>
+        string.Equals(item.Id, flowId, StringComparison.OrdinalIgnoreCase))
+        ?? throw new InvalidOperationException($"Unknown flow: {flowId}");
+    var safety = SafetySettingsLoader.Load(GetRequiredOption(args, "--safety"));
+
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        cancellation.Cancel();
+    };
+
+    Console.WriteLine($"Starting one-shot flow: {flow.Id}");
+    Console.WriteLine(
+        $"Exact foreground required: {safety.RequiredWindowTitle}; " +
+        $"emergency stop: {safety.EmergencyStopKey}");
+
+    var runner = new OneShotFlowRunner(
+        new WindowsKeySender(),
+        ReadForegroundWindowState,
+        Thread.Sleep,
+        Console.WriteLine);
+    var result = runner.Run(flow, safety, cancellation.Token);
+    Console.WriteLine(
+        $"One-shot flow ended after {result.KeysSent} key(s). " +
+        "No post-restart input was sent.");
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--config" && args[2] == "--validate")
 {
     var document = WorkflowLoader.Load(args[1]);
@@ -114,6 +157,7 @@ Console.WriteLine("  --analyze-aftermarket-image <image> --targets <targets.json
 Console.WriteLine("  --watch-foreground --targets <targets.json> [--title-contains <text>] [--interval-ms <n>] [--max-samples <n>]");
 Console.WriteLine("  --config <workflow.json> --validate");
 Console.WriteLine("  --config <workflow.json> --print-flow <flow-id>");
+Console.WriteLine("  --run-one-shot --config <workflow.json> --flow <id> --safety <safety.json> --acknowledge-live-input FH6_ONE_SHOT");
 
 static void PrintFlow(string configPath, string flowId)
 {
@@ -212,6 +256,21 @@ static string? GetOption(string[] arguments, string name)
     }
 
     return arguments[index + 1];
+}
+
+static string GetRequiredOption(string[] arguments, string name)
+{
+    return GetOption(arguments, name)
+        ?? throw new InvalidOperationException($"Missing required option: {name}");
+}
+
+static ForegroundWindowState ReadForegroundWindowState()
+{
+    using var capture = ForegroundWindowCapture.Capture();
+    return new ForegroundWindowState(
+        capture.Title,
+        capture.Image.Width,
+        capture.Image.Height);
 }
 
 static int GetIntegerOption(string[] arguments, string name, int defaultValue)

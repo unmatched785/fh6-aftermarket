@@ -1,6 +1,8 @@
 using System.Drawing;
 using Fh6Aftermarket.Domain;
+using Fh6Aftermarket.Input;
 using Fh6Aftermarket.Ocr;
+using Fh6Aftermarket.Safety;
 using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
@@ -27,10 +29,11 @@ var repoRoot = FindRepoRoot();
 var workflowPath = Path.Combine(repoRoot, "config", "workflow.json");
 var workflow = WorkflowLoader.Load(workflowPath);
 
-CheckFlow(workflow, "kor-to-eng", expectedStepCount: 9);
-CheckFlow(workflow, "eng-to-kor", expectedStepCount: 9);
-CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19);
-CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8);
+CheckFlow(workflow, "kor-to-eng", expectedStepCount: 10, expectedAutomationReady: true);
+CheckFlow(workflow, "eng-to-kor", expectedStepCount: 9, expectedAutomationReady: false);
+CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19, expectedAutomationReady: false);
+CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8, expectedAutomationReady: false);
+CheckOneShotRunner(workflow);
 
 var targetsPath = Path.Combine(repoRoot, "config", "targets.json");
 var targets = TargetCatalog.Load(targetsPath);
@@ -72,6 +75,7 @@ Console.WriteLine("- synthetic marker and selected-card detection");
 Console.WriteLine("- synthetic selling-banner detection");
 Console.WriteLine("- read-only watcher title guard and target stop");
 Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
+Console.WriteLine("- one-shot safety gate, exact foreground guard, and 15-key KOR-to-ENG plan");
 
 void CheckGeometry(int width, int height, PixelPoint canonical, PixelPoint expected)
 {
@@ -198,7 +202,11 @@ Bitmap CreateSyntheticWindow()
     return bitmap;
 }
 
-void CheckFlow(WorkflowDocument document, string id, int expectedStepCount)
+void CheckFlow(
+    WorkflowDocument document,
+    string id,
+    int expectedStepCount,
+    bool expectedAutomationReady)
 {
     var flow = document.Flows.SingleOrDefault(
         item => string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -212,6 +220,108 @@ void CheckFlow(WorkflowDocument document, string id, int expectedStepCount)
     if (flow.Steps.Count != expectedStepCount)
     {
         failures.Add($"Workflow {id} expected {expectedStepCount} steps, got {flow.Steps.Count}.");
+    }
+
+    if (flow.AutomationReady != expectedAutomationReady)
+    {
+        failures.Add(
+            $"Workflow {id} automationReady expected {expectedAutomationReady}, " +
+            $"got {flow.AutomationReady}.");
+    }
+}
+
+void CheckOneShotRunner(WorkflowDocument document)
+{
+    var flow = document.Flows.Single(item => item.Id == "kor-to-eng");
+    var sender = new RecordingKeySender();
+    var safety = new SafetySettings
+    {
+        AutomationEnabled = false,
+        SupportedLanguages = ["kor", "eng"],
+        AspectRatioTolerance = 0.005,
+        EmergencyStopKey = "F2",
+        RequiredWindowTitle = "Forza Horizon 6",
+        InputDelayMilliseconds = 50,
+        MaxKeysPerOneShot = 32
+    };
+    var runner = new OneShotFlowRunner(
+        sender,
+        () => new ForegroundWindowState("Forza Horizon 6", 2560, 1440),
+        _ => { },
+        _ => { });
+
+    try
+    {
+        _ = runner.Run(flow, safety, CancellationToken.None);
+        failures.Add("One-shot runner must refuse automationEnabled=false.");
+    }
+    catch (InvalidOperationException)
+    {
+        // Expected fail-closed behavior.
+    }
+
+    var result = runner.Run(
+        flow,
+        safety with { AutomationEnabled = true },
+        CancellationToken.None);
+
+    if (result.KeysSent != 15 || sender.Keys.Count != 15)
+    {
+        failures.Add(
+            $"KOR-to-ENG one-shot expected 15 keys, got " +
+            $"{result.KeysSent} / recorded={sender.Keys.Count}.");
+    }
+
+    var expectedTail = new[] { "Down", "Enter", "Down", "Enter" };
+    if (!sender.Keys.TakeLast(expectedTail.Length).SequenceEqual(expectedTail))
+    {
+        failures.Add("KOR-to-ENG tail must select English US, then Yes, then restart.");
+    }
+
+    var wrongWindowSender = new RecordingKeySender();
+    var wrongWindowRunner = new OneShotFlowRunner(
+        wrongWindowSender,
+        () => new ForegroundWindowState("Different application", 2560, 1440),
+        _ => { },
+        _ => { });
+
+    try
+    {
+        _ = wrongWindowRunner.Run(
+            flow,
+            safety with { AutomationEnabled = true },
+            CancellationToken.None);
+        failures.Add("One-shot runner must refuse a different foreground window.");
+    }
+    catch (InvalidOperationException)
+    {
+        if (wrongWindowSender.Keys.Count != 0)
+        {
+            failures.Add("Foreground guard must stop before the first key.");
+        }
+    }
+
+    var stoppedSender = new RecordingKeySender { EmergencyStopPressed = true };
+    var stoppedRunner = new OneShotFlowRunner(
+        stoppedSender,
+        () => new ForegroundWindowState("Forza Horizon 6", 2560, 1440),
+        _ => { },
+        _ => { });
+
+    try
+    {
+        _ = stoppedRunner.Run(
+            flow,
+            safety with { AutomationEnabled = true },
+            CancellationToken.None);
+        failures.Add("One-shot runner must honor F2 before the first key.");
+    }
+    catch (OperationCanceledException)
+    {
+        if (stoppedSender.Keys.Count != 0)
+        {
+            failures.Add("F2 emergency stop must stop before the first key.");
+        }
     }
 }
 
@@ -248,4 +358,15 @@ static string FindRepoRoot()
     }
 
     throw new DirectoryNotFoundException("Could not locate repository root.");
+}
+
+sealed class RecordingKeySender : IKeySender
+{
+    public List<string> Keys { get; } = [];
+
+    public bool EmergencyStopPressed { get; set; }
+
+    public void Send(string key) => Keys.Add(key);
+
+    public bool IsDown(string key) => EmergencyStopPressed;
 }

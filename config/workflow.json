@@ -5,6 +5,7 @@
       "id": "kor-to-eng",
       "fromLanguage": "kor",
       "toLanguage": "eng",
+      "automationReady": true,
       "steps": [
         { "kind": "key", "key": "Escape", "repeat": 1, "label": "일시 정지 메뉴 열기" },
         { "kind": "key", "key": "Down", "repeat": 1, "label": "설정 행으로 이동" },
@@ -12,7 +13,8 @@
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "설정 열기" },
         { "kind": "key", "key": "Up", "repeat": 2, "label": "언어 선택 항목으로 이동" },
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "언어 목록 열기" },
-        { "kind": "key", "key": "Down", "repeat": 6, "label": "English US로 이동" },
+        { "kind": "key", "key": "Down", "repeat": 5, "label": "시스템 언어에서 English US로 이동" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "English US 선택" },
         { "kind": "key", "key": "Down", "repeat": 1, "label": "재시작 확인 선택" },
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "언어 변경 및 재시작" }
       ]
@@ -21,6 +23,7 @@
       "id": "eng-to-kor",
       "fromLanguage": "eng",
       "toLanguage": "kor",
+      "automationReady": false,
       "steps": [
         { "kind": "key", "key": "Escape", "repeat": 1, "label": "Open pause menu" },
         { "kind": "key", "key": "Down", "repeat": 1, "label": "Move to Settings row" },
@@ -37,6 +40,7 @@
       "id": "post-restart-to-filtered-map",
       "fromLanguage": "any-supported",
       "toLanguage": "unchanged",
+      "automationReady": false,
       "steps": [
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "첫 시작 화면 진행" },
         { "kind": "wait", "anchor": "loading-1-complete", "timeoutMs": 180000, "label": "첫 로딩 완료 확인" },
@@ -63,6 +67,7 @@
       "id": "open-aftermarket-location",
       "fromLanguage": "any-supported",
       "toLanguage": "unchanged",
+      "automationReady": false,
       "steps": [
         { "kind": "detect", "anchor": "aftermarket-map-marker-clear", "timeoutMs": 30000, "label": "선명한 보라색 애프터마켓 아이콘 찾기" },
         { "kind": "mouse", "target": "aftermarket-map-marker-center", "label": "아이콘 중심으로 커서 이동" },

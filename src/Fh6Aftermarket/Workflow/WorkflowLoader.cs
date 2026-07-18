@@ -51,6 +51,13 @@ public static class WorkflowLoader
             {
                 ValidateStep(flow.Id, step);
             }
+
+            if (flow.AutomationReady && flow.Steps.Any(step =>
+                    !string.Equals(step.Kind, "key", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    $"Automation-ready flow '{flow.Id}' must be key-only.");
+            }
         }
     }
 

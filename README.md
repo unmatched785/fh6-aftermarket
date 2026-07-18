@@ -3,7 +3,8 @@
 FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가 없을 때만
 `한국어 ↔ English US` 언어 변경을 이용해 클라이언트를 재시작하는 로컬 도구입니다.
 
-현재 단계는 **화면 관찰·검증 전용**입니다. 실제 키나 마우스 입력은 보내지 않습니다.
+현재 단계는 화면 관찰 기능과 **잠긴 1회 입력기**까지 구현돼 있습니다. 기본 설정에서는
+실제 키 입력을 거부하며, 반복 실행과 마우스 입력은 아직 구현하지 않았습니다.
 
 ## 안전 원칙
 
@@ -24,6 +25,8 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 여섯 한정 차량의 정식명·화면 축약명 사전과 OCR 오인식 허용 매처
 - 녹색 판매 배너 검출, 차량명 영역 분리, Tesseract OCR
 - `TargetFound` / `Clear` / `Uncertain` 안전 판정
+- 실화면 검증을 통과한 KOR(시스템 언어)→English US 1회 재시작 흐름
+- 매 키 전 정확한 창 제목·16:9·F2를 검사하는 1회 입력기
 
 ## 로컬 검사
 
@@ -80,11 +83,26 @@ C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Af
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --watch-foreground --targets .\config\targets.json --title-contains Forza --max-samples 120
 ```
 
+## 잠긴 1회 입력기
+
+KOR(시스템 언어)→English US 흐름은 QHD 실화면에서 키마다 확인했습니다. 다만
+`config/safety.json`의 `automationEnabled` 기본값이 `false`이므로 아래 명령도 현재는 입력을
+보내지 않고 거부됩니다. 라이브 검증을 다시 시작할 때만 설정을 명시적으로 바꾸고, 정확한
+Forza 창이 전경에 있는 상태에서 사용합니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --run-one-shot --config .\config\workflow.json --flow kor-to-eng --safety .\config\safety.json --acknowledge-live-input FH6_ONE_SHOT
+```
+
+실행기는 `Forza Horizon 6` 정확한 제목, 16:9 클라이언트, F2 비활성 상태를 매 키 전에
+재확인하고 키 사이에 750ms의 여유를 둡니다. 하나라도 달라지면 즉시 중단하고, 재시작
+Enter 뒤에는 새 창에 입력하지 않습니다.
+
 ## 다음 단계
 
-1. 전경 게임 창을 주기적으로 읽는 입력 없는 감시 모드
-2. 목표 없는 실제 화면을 추가 확보해 `Clear` 완전성 판정 검증
-3. 단 한 번만 실행되는 재시작 입력
+1. English US→KOR 1회 흐름을 실화면에서 검증
+2. 재시작 후 지도 복귀 흐름에 화면 앵커 대기 추가
+3. 1회 실행기를 실제 화면에서 재검증
 4. 제한 횟수 반복과 긴급 중단
 
 자세한 수동 흐름은 [docs/manual-flow.md](docs/manual-flow.md), 화면 인식 계획은

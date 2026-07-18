@@ -10,6 +10,7 @@ public sealed record WorkflowFlow(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("fromLanguage")] string FromLanguage,
     [property: JsonPropertyName("toLanguage")] string ToLanguage,
+    [property: JsonPropertyName("automationReady")] bool AutomationReady,
     [property: JsonPropertyName("steps")] IReadOnlyList<WorkflowStep> Steps);
 
 public sealed record WorkflowStep(
