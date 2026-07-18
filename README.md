@@ -3,7 +3,7 @@
 FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가 없을 때만
 `한국어 ↔ English US` 언어 변경을 이용해 클라이언트를 재시작하는 로컬 도구입니다.
 
-현재 단계는 **명세·검증 전용**입니다. 실제 키나 마우스 입력은 보내지 않습니다.
+현재 단계는 **화면 관찰·검증 전용**입니다. 실제 키나 마우스 입력은 보내지 않습니다.
 
 ## 안전 원칙
 
@@ -35,6 +35,18 @@ C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\tests\Fh6
 
 ```powershell
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --config .\config\workflow.json --print-flow kor-to-eng
+```
+
+저장된 스크린샷을 입력 없이 판독할 수 있습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --inspect-image .\captures\sample.png
+```
+
+현재 전경 창을 PNG로 저장하고 같은 판독을 수행할 수도 있습니다.
+
+```powershell
+C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --capture-foreground .\captures\foreground.png
 ```
 
 ## 다음 단계

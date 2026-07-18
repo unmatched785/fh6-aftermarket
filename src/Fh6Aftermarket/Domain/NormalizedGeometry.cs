@@ -2,6 +2,13 @@ namespace Fh6Aftermarket.Domain;
 
 public readonly record struct PixelPoint(int X, int Y);
 
+public readonly record struct PixelRect(int X, int Y, int Width, int Height)
+{
+    public int Right => X + Width;
+
+    public int Bottom => Y + Height;
+}
+
 public sealed class ScreenGeometry
 {
     public const int CanonicalWidth = 1920;
@@ -49,5 +56,17 @@ public sealed class ScreenGeometry
         var x = (int)Math.Round(canonicalPoint.X * Width / (double)CanonicalWidth);
         var y = (int)Math.Round(canonicalPoint.Y * Height / (double)CanonicalHeight);
         return new PixelPoint(x, y);
+    }
+
+    public PixelRect Scale(PixelRect canonicalRect)
+    {
+        var topLeft = Scale(new PixelPoint(canonicalRect.X, canonicalRect.Y));
+        var bottomRight = Scale(new PixelPoint(canonicalRect.Right, canonicalRect.Bottom));
+
+        return new PixelRect(
+            topLeft.X,
+            topLeft.Y,
+            Math.Max(1, bottomRight.X - topLeft.X),
+            Math.Max(1, bottomRight.Y - topLeft.Y));
     }
 }
