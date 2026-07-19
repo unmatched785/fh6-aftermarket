@@ -856,52 +856,12 @@ public sealed class ValidationSessionController
             return;
         }
 
-        var bestAttempt = result.Recognition.PreferredVehicleNameAttempt!;
-        var observedName = bestAttempt.Text.Trim();
-        var isTarget = result.TargetMatches.Count > 0;
-
-        if (isTarget)
-        {
-            _recognitionRetries = 0;
-            var target = result.TargetMatches[0].Target;
-            _vehicles.Add(new VehicleObservation(
-                DateTimeOffset.Now,
-                target.DisplayName,
-                bestAttempt.BestWordConfidence,
-                true));
-            AddLog(
-                $"차량 판독: OCR='{observedName}' / normalized='{target.DisplayName}' / " +
-                $"confidence={bestAttempt.BestWordConfidence:F1} / TARGET");
-            _stopwatch.Stop();
-            PlayTargetAlert();
-            Publish(
-                ValidationSessionState.TargetFound,
-                "목표 차량 발견",
-                target.DisplayName);
-            return;
-        }
-
-        if (result.State == AftermarketScanState.Uncertain ||
-            !result.CarResolution.IsKnown)
-        {
-            RegisterRecognitionRetry(
-                $"차량 DB에서 정식 차량명으로 확정하지 못했습니다: '{observedName}'. " +
-                "이 판독으로는 재시작하지 않습니다.");
-            return;
-        }
-
         _recognitionRetries = 0;
-        var candidates = result.CarResolution.Candidates;
-        var normalizedIdentity = string.Join(
-            "|",
-            candidates
-                .Select(candidate => candidate.Car.Id)
-                .OrderBy(id => id, StringComparer.Ordinal));
-        var name = candidates.Count == 1
-            ? candidates[0].Car.CarName
-            : $"{candidates[0].Car.CarName} 외 {candidates.Count - 1}개 후보";
+        var bestAttempt = result.Recognition.PreferredVehicleNameAttempt!;
+        var name = bestAttempt.Text.Trim();
+        var normalized = TargetTextMatcher.Normalize(name);
 
-        if (string.Equals(normalizedIdentity, _lastObservedName, StringComparison.Ordinal))
+        if (string.Equals(normalized, _lastObservedName, StringComparison.Ordinal))
         {
             Publish(
                 ValidationSessionState.Running,
@@ -910,13 +870,11 @@ public sealed class ValidationSessionController
             return;
         }
 
-        _lastObservedName = normalizedIdentity;
-        if (!_uniqueVehicleNames.Add(normalizedIdentity))
+        _lastObservedName = normalized;
+        if (!_uniqueVehicleNames.Add(normalized))
         {
             _duplicateObservations++;
-            AddLog(
-                $"중복 차량명 관찰: OCR='{observedName}' / normalized='{name}'. " +
-                "정지하지 않고 다음 선택을 기다립니다.");
+            AddLog($"중복 차량명 관찰: {name}. 정지하지 않고 다음 선택을 기다립니다.");
             Publish(
                 ValidationSessionState.Running,
                 "중복 카드 — 재시도 가능",
@@ -924,14 +882,26 @@ public sealed class ValidationSessionController
             return;
         }
 
+        var isTarget = result.TargetMatches.Count > 0;
         _vehicles.Add(new VehicleObservation(
             DateTimeOffset.Now,
             name,
             bestAttempt.BestWordConfidence,
-            false));
+            isTarget));
         AddLog(
-            $"차량 판독: OCR='{observedName}' / normalized='{name}' / " +
-            $"carDb={normalizedIdentity} / confidence={bestAttempt.BestWordConfidence:F1}");
+            $"차량 판독: {name} / confidence={bestAttempt.BestWordConfidence:F1}" +
+            (isTarget ? " / TARGET" : string.Empty));
+
+        if (isTarget)
+        {
+            _stopwatch.Stop();
+            PlayTargetAlert();
+            Publish(
+                ValidationSessionState.TargetFound,
+                "목표 차량 발견",
+                result.TargetMatches[0].Target.DisplayName);
+            return;
+        }
 
         if (_vehicles.Count >= 3)
         {

@@ -71,10 +71,8 @@ if (args.Length == 2 && args[0] == "--capture-foreground")
 
 if (args.Length == 4 && args[0] == "--targets" && args[2] == "--match-text")
 {
-    var matcher = LoadTargetMatcher(args[1]);
-    var resolution = matcher.ResolveCar(args[3]);
-    var matches = matcher.Match(args[3], resolution);
-    PrintCarResolution(resolution);
+    var catalog = TargetCatalog.Load(args[1]);
+    var matches = new TargetTextMatcher(catalog).Match(args[3]);
     Console.WriteLine($"Target matches: {matches.Count}");
 
     foreach (var match in matches)
@@ -95,9 +93,10 @@ if (args.Length is 4 or 6 && args[0] == "--analyze-aftermarket-image" && args[2]
         : tesseract.TessdataPath;
 
     using var image = new Bitmap(args[1]);
+    var catalog = TargetCatalog.Load(args[3]);
     var analyzer = new AftermarketImageAnalyzer(
         new TesseractCliRecognizer(tesseract.ExecutablePath, tessdataPath),
-        LoadTargetMatcher(args[3]));
+        new TargetTextMatcher(catalog));
     PrintAftermarketScan(analyzer.Analyze(image));
     return;
 }
@@ -110,9 +109,10 @@ if (args.Length is 4 or 6 && args[0] == "--analyze-map-card" && args[2] == "--ta
         : tesseract.TessdataPath;
 
     using var image = new Bitmap(args[1]);
+    var catalog = TargetCatalog.Load(args[3]);
     var analyzer = new AftermarketMapCardAnalyzer(
         new TesseractCliRecognizer(tesseract.ExecutablePath, tessdataPath),
-        LoadTargetMatcher(args[3]));
+        new TargetTextMatcher(catalog));
     PrintMapCardScan(analyzer.Analyze(image));
     return;
 }
@@ -126,9 +126,10 @@ if (args.Length >= 3 && args[0] == "--watch-foreground" && args[1] == "--targets
     var intervalMilliseconds = GetIntegerOption(args, "--interval-ms", 1_000);
     var maxSamples = GetIntegerOption(args, "--max-samples", 120);
 
+    var catalog = TargetCatalog.Load(args[2]);
     var analyzer = new AftermarketImageAnalyzer(
         new TesseractCliRecognizer(tesseract.ExecutablePath, tessdataPath),
-        LoadTargetMatcher(args[2]));
+        new TargetTextMatcher(catalog));
     var watcher = new ReadOnlyForegroundWatcher(
         analyzer.Analyze,
         new ReadOnlyWatchOptions(titleText, intervalMilliseconds, maxSamples),
@@ -209,7 +210,7 @@ Console.WriteLine("  --inspect-image <image-path>");
 Console.WriteLine("  --detect-pause-language <image-path>");
 Console.WriteLine("  --inspect-map-icons <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
-Console.WriteLine("  --targets <targets.json> --match-text <recognized-text> (uses sibling official-cars.json)");
+Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
 Console.WriteLine("  --analyze-aftermarket-image <image> --targets <targets.json> [--tessdata-dir <dir>]");
 Console.WriteLine("  --analyze-map-card <image> --targets <targets.json> [--tessdata-dir <dir>]");
 Console.WriteLine("  --watch-foreground --targets <targets.json> [--title-contains <text>] [--interval-ms <n>] [--max-samples <n>]");
@@ -300,7 +301,6 @@ static void PrintAftermarketScan(AftermarketScanResult result)
             $"text=({banner.Region.TextRegion.X},{banner.Region.TextRegion.Y}," +
             $"{banner.Region.TextRegion.Width},{banner.Region.TextRegion.Height})");
         Console.WriteLine($"      OCR: {banner.Recognition.CombinedText}");
-        PrintCarResolution(banner.CarResolution, "      ");
 
         foreach (var attempt in banner.Recognition.Attempts)
         {
@@ -335,7 +335,6 @@ static void PrintMapCardScan(AftermarketMapCardScanResult result)
         $"{result.Region.VehicleNameRegion.Y},{result.Region.VehicleNameRegion.Width}," +
         $"{result.Region.VehicleNameRegion.Height})");
     Console.WriteLine($"OCR: {result.Recognition.CombinedText}");
-    PrintCarResolution(result.CarResolution, "  ");
 
     foreach (var attempt in result.Recognition.Attempts)
     {
@@ -349,33 +348,6 @@ static void PrintMapCardScan(AftermarketMapCardScanResult result)
         Console.WriteLine(
             $"  TARGET: {match.Target.DisplayName} via '{match.Alias}' " +
             $"score={match.Score:F3}");
-    }
-}
-
-static TargetTextMatcher LoadTargetMatcher(string targetsPath)
-{
-    var absoluteTargetsPath = Path.GetFullPath(targetsPath);
-    var configDirectory = Path.GetDirectoryName(absoluteTargetsPath)
-        ?? throw new InvalidOperationException("Target catalog directory is invalid.");
-    var officialCarsPath = Path.Combine(configDirectory, "official-cars.json");
-    var targets = TargetCatalog.Load(absoluteTargetsPath);
-    var officialCars = OfficialCarCatalog.Load(officialCarsPath);
-    return new TargetTextMatcher(targets, new CarNameNormalizer(officialCars));
-}
-
-static void PrintCarResolution(CarNameResolution resolution, string indent = "")
-{
-    Console.WriteLine($"{indent}Official car candidates: {resolution.Candidates.Count}");
-    foreach (var candidate in resolution.Candidates.Take(12))
-    {
-        Console.WriteLine(
-            $"{indent}- {candidate.Car.Id}: {candidate.Car.CarName} " +
-            $"score={candidate.Score:F3} exact={candidate.Exact}");
-    }
-
-    if (resolution.Candidates.Count > 12)
-    {
-        Console.WriteLine($"{indent}- ... {resolution.Candidates.Count - 12} more candidate(s)");
     }
 }
 

@@ -13,58 +13,13 @@ public sealed class TargetTextMatcher
 {
     private const double MinimumFuzzyScore = 0.80;
     private readonly TargetCatalogDocument _catalog;
-    private readonly CarNameNormalizer? _carNameNormalizer;
-    private readonly IReadOnlyDictionary<string, TargetVehicle> _targetsById;
 
-    public TargetTextMatcher(
-        TargetCatalogDocument catalog,
-        CarNameNormalizer? carNameNormalizer = null)
+    public TargetTextMatcher(TargetCatalogDocument catalog)
     {
         _catalog = catalog;
-        _carNameNormalizer = carNameNormalizer;
-        _targetsById = catalog.Targets.ToDictionary(
-            target => target.Id,
-            StringComparer.OrdinalIgnoreCase);
-
-        if (carNameNormalizer is not null)
-        {
-            var missingTargetIds = catalog.Targets
-                .Where(target => !carNameNormalizer.ContainsCarId(target.Id))
-                .Select(target => target.Id)
-                .ToArray();
-            if (missingTargetIds.Length > 0)
-            {
-                throw new InvalidDataException(
-                    $"Official car catalog is missing target IDs: " +
-                    string.Join(", ", missingTargetIds));
-            }
-        }
     }
 
     public IReadOnlyList<TargetTextMatch> Match(string observedText)
-        => Match(observedText, ResolveCar(observedText));
-
-    public IReadOnlyList<TargetTextMatch> Match(OcrRecognition recognition)
-        => recognition.Attempts
-            .Where(attempt => !string.IsNullOrWhiteSpace(attempt.Text))
-            .SelectMany(attempt =>
-            {
-                var resolution = ResolveCar(attempt.Text);
-                return Match(attempt.Text, resolution);
-            })
-            .GroupBy(match => match.Target.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(match => match.Exact)
-                .ThenByDescending(match => match.Score)
-                .First())
-            .OrderByDescending(match => match.Exact)
-            .ThenByDescending(match => match.Score)
-            .ThenBy(match => match.Target.DisplayName, StringComparer.Ordinal)
-            .ToArray();
-
-    public IReadOnlyList<TargetTextMatch> Match(
-        string observedText,
-        CarNameResolution resolution)
     {
         var normalizedObserved = Normalize(observedText);
         if (normalizedObserved.Length == 0)
@@ -115,38 +70,10 @@ public sealed class TargetTextMatcher
             }
         }
 
-        foreach (var officialMatch in resolution.Candidates)
-        {
-            if (!_targetsById.TryGetValue(officialMatch.Car.Id, out var target) ||
-                results.Any(match => string.Equals(
-                    match.Target.Id,
-                    target.Id,
-                    StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            results.Add(new TargetTextMatch(
-                target,
-                officialMatch.Car.Model,
-                officialMatch.Score,
-                officialMatch.Exact));
-        }
-
         return results
             .OrderByDescending(match => match.Score)
             .ThenBy(match => match.Target.DisplayName, StringComparer.Ordinal)
             .ToArray();
-    }
-
-    public CarNameResolution ResolveCar(string observedText)
-        => _carNameNormalizer?.Resolve(observedText)
-           ?? new CarNameResolution(observedText, []);
-
-    public CarNameResolution ResolvePreferredCar(OcrRecognition recognition)
-    {
-        var preferredText = recognition.PreferredVehicleNameAttempt?.Text;
-        return ResolveCar(preferredText ?? string.Empty);
     }
 
     public static string Normalize(string value)

@@ -21,16 +21,12 @@ public static class GuiLauncher
                     Path.Combine(repoRoot, "config", "safety.json"));
                 var catalog = TargetCatalog.Load(
                     Path.Combine(repoRoot, "config", "targets.json"));
-                var officialCars = OfficialCarCatalog.Load(
-                    Path.Combine(repoRoot, "config", "official-cars.json"));
                 var tesseract = TesseractInstallationLocator.Locate();
                 var analyzer = new AftermarketMapCardAnalyzer(
                     new TesseractCliRecognizer(
                         tesseract.ExecutablePath,
                         tesseract.TessdataPath),
-                    new TargetTextMatcher(
-                        catalog,
-                        new CarNameNormalizer(officialCars)));
+                    new TargetTextMatcher(catalog));
                 var languageDetector = new PauseMenuLanguageDetector(
                     new TesseractCliRecognizer(
                         tesseract.ExecutablePath,
@@ -76,8 +72,7 @@ public static class GuiLauncher
             while (directory is not null)
             {
                 if (File.Exists(Path.Combine(directory.FullName, "config", "targets.json")) &&
-                    File.Exists(Path.Combine(directory.FullName, "config", "safety.json")) &&
-                    File.Exists(Path.Combine(directory.FullName, "config", "official-cars.json")))
+                    File.Exists(Path.Combine(directory.FullName, "config", "safety.json")))
                 {
                     return directory.FullName;
                 }
@@ -87,7 +82,6 @@ public static class GuiLauncher
         }
 
         throw new DirectoryNotFoundException(
-            "config/targets.json, config/safety.json, and config/official-cars.json " +
-            "could not be located.");
+            "config/targets.json and config/safety.json could not be located.");
     }
 }

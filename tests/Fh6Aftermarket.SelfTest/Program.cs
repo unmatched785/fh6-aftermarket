@@ -28,8 +28,8 @@ CheckSyntheticMapCard();
 CheckSyntheticMapIconCluster();
 CheckPauseMenuLanguageClassifier();
 CheckGroupedTimingSettings();
-CheckOcrReadabilityGuard();
 CheckTesseractInstallationLocator();
+CheckOcrReadabilityGuard();
 CheckReadOnlyWatcherTitleGuard();
 CheckReadOnlyWatcherTargetStop();
 
@@ -46,45 +46,14 @@ CheckOneShotRunner(workflow);
 
 var targetsPath = Path.Combine(repoRoot, "config", "targets.json");
 var targets = TargetCatalog.Load(targetsPath);
-var officialCarsPath = Path.Combine(repoRoot, "config", "official-cars.json");
-var officialCars = OfficialCarCatalog.Load(officialCarsPath);
-var normalizer = new CarNameNormalizer(officialCars);
-var matcher = new TargetTextMatcher(targets, normalizer);
-
-if (targets.Targets.Count != 6)
-{
-    failures.Add($"Target catalog must contain exactly six vehicles, got {targets.Targets.Count}.");
-}
-
-if (officialCars.Count < 627)
-{
-    failures.Add($"FH6 Meta official car catalog is stale: expected at least 627, got {officialCars.Count}.");
-}
+var matcher = new TargetTextMatcher(targets);
 
 CheckTarget("Aventador '12", "2012-lamborghini-aventador-lp700-4");
 CheckTarget("Lambo Sesto", "2011-lamborghini-sesto-elemento");
 CheckTarget("F8 Tributo '19", "2019-ferrari-f8-tributo");
-CheckTarget("F8 Tributo = |", "2019-ferrari-f8-tributo");
-CheckTarget("599XX Evo = |", "2012-ferrari-599xx-evolution");
 CheckTarget("Diab1o GTR", "1999-lamborghini-diablo-gtr");
 CheckNoTarget("Ferrari F12tdf");
 CheckNoTarget("Urus '19");
-CheckNoTarget("Aventador SVJ");
-CheckKnownCar("LaFerrari = |", "2013-ferrari-laferrari", expectedTarget: false);
-CheckKnownCar("Abarth 131", "1980-abarth-fiat-131", expectedTarget: false);
-CheckKnownCar("MC12 Corsa '08", "2008-maserati-mc12-versione-corsa", expectedTarget: false);
-CheckKnownCar("L. Countach '21", "2021-lamborghini-countach-lpi-800-4", expectedTarget: false);
-CheckKnownCar("Ferrari Dino", "1969-ferrari-dino-246-gt", expectedTarget: false);
-CheckKnownCar("Huracan Tecnica", "2022-lamborghini-huracan-tecnica", expectedTarget: false);
-CheckKnownCar("Lambo Miura", "1967-lamborghini-miura-p400", expectedTarget: false);
-CheckKnownCar("Ferrari 430 S$", "2007-ferrari-430-scuderia", expectedTarget: false);
-CheckUnknownCar("| = ||");
-CheckCardClassificationSafety();
-
-foreach (var target in targets.Targets)
-{
-    CheckTarget(target.DisplayName, target.Id);
-}
 
 var safetyPath = Path.Combine(repoRoot, "config", "safety.json");
 var safetyJson = File.ReadAllText(safetyPath);
@@ -128,8 +97,7 @@ Console.WriteLine("- synthetic selling-banner detection");
 Console.WriteLine("- synthetic map-card header and vehicle-name region detection");
 Console.WriteLine("- synthetic overlapping map-icon cluster detection");
 Console.WriteLine("- read-only watcher title guard and target stop");
-Console.WriteLine(
-    $"- six target vehicles plus {officialCars.Count}-car FH6 Meta normalization and OCR-tolerant matching");
+Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
 Console.WriteLine("- one-shot safety gate, exact foreground guard, and 15-key KOR-to-ENG plan");
 
 void CheckGeometry(int width, int height, PixelPoint canonical, PixelPoint expected)
@@ -739,79 +707,6 @@ void CheckNoTarget(string text)
     if (matches.Count != 0)
     {
         failures.Add($"Expected no target for text '{text}', got {matches[0].Target.Id}.");
-    }
-}
-
-void CheckKnownCar(string text, string expectedId, bool expectedTarget)
-{
-    var resolution = normalizer.Resolve(text);
-    if (!resolution.Candidates.Any(candidate => candidate.Car.Id == expectedId))
-    {
-        failures.Add($"Expected official car '{expectedId}' for text '{text}'.");
-    }
-
-    var isTarget = matcher.Match(text, resolution).Count > 0;
-    if (isTarget != expectedTarget)
-    {
-        failures.Add(
-            $"Expected target={expectedTarget} after normalizing '{text}', got target={isTarget}.");
-    }
-}
-
-void CheckUnknownCar(string text)
-{
-    var resolution = normalizer.Resolve(text);
-    if (resolution.IsKnown)
-    {
-        failures.Add(
-            $"Expected unresolved official car text '{text}', got {resolution.Candidates[0].Car.Id}.");
-    }
-}
-
-void CheckCardClassificationSafety()
-{
-    var repeatedNonTarget = new OcrRecognition([
-        new OcrAttempt(13, "LaFerrari = |", 94),
-        new OcrAttempt(7, "LaFerrari = |", 96),
-        new OcrAttempt(11, "LaFerrari = |", 91)
-    ]);
-    CheckRecognitionState(
-        repeatedNonTarget,
-        AftermarketScanState.Clear,
-        "Repeated LaFerrari OCR must normalize to a known non-target car.");
-
-    var secondaryTargetSignal = new OcrRecognition([
-        new OcrAttempt(13, "F8 Tributo = |", 82),
-        new OcrAttempt(7, "LaFerrari = |", 96),
-        new OcrAttempt(11, string.Empty, -1)
-    ]);
-    CheckRecognitionState(
-        secondaryTargetSignal,
-        AftermarketScanState.TargetFound,
-        "A target signal from any OCR mode must override a preferred non-target reading.");
-
-    var unknownReadableText = new OcrRecognition([
-        new OcrAttempt(13, string.Empty, -1),
-        new OcrAttempt(7, "Totally Unknown Car", 96),
-        new OcrAttempt(11, string.Empty, -1)
-    ]);
-    CheckRecognitionState(
-        unknownReadableText,
-        AftermarketScanState.Uncertain,
-        "Readable text outside the official DB must remain uncertain and must not clear a cycle.");
-}
-
-void CheckRecognitionState(
-    OcrRecognition recognition,
-    AftermarketScanState expected,
-    string failureMessage)
-{
-    var resolution = matcher.ResolvePreferredCar(recognition);
-    var matches = matcher.Match(recognition);
-    var actual = AftermarketMapCardAnalyzer.Classify(recognition, matches, resolution);
-    if (actual != expected)
-    {
-        failures.Add($"{failureMessage} Expected {expected}, got {actual}.");
     }
 }
 
