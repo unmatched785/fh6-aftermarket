@@ -1,13 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>Fh6Aftermarket.Gui</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Fh6Aftermarket\Fh6Aftermarket.csproj" />
+    <ProjectReference Include="..\Fh6Aftermarket\Fh6Aftermarket.csproj" />
+    <EmbeddedResource Include="Assets\aftermarket.bg.png"
+                      LogicalName="Fh6Aftermarket.Gui.aftermarket.bg.png" />
   </ItemGroup>
 </Project>

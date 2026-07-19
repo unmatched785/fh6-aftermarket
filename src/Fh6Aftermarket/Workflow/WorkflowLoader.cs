@@ -51,6 +51,13 @@ public static class WorkflowLoader
             {
                 ValidateStep(flow.Id, step);
             }
+
+            if (flow.AutomationReady && flow.Steps.Any(step =>
+                    !string.Equals(step.Kind, "key", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    $"Automation-ready flow '{flow.Id}' must be key-only.");
+            }
         }
     }
 
@@ -64,7 +71,13 @@ public static class WorkflowLoader
                 throw new InvalidDataException($"Invalid screen detection step in {flowId}: {step.Label}");
             case "mouse" when string.IsNullOrWhiteSpace(step.Target):
                 throw new InvalidDataException($"Invalid mouse step in {flowId}: {step.Label}");
-            case "key" or "wait" or "detect" or "mouse":
+            case "keyhold" when
+                string.IsNullOrWhiteSpace(step.Key) ||
+                step.MaximumDurationMs is null or < 100 or > 5000 ||
+                string.IsNullOrWhiteSpace(step.Anchor) ||
+                step.TimeoutMs is null or < 1:
+                throw new InvalidDataException($"Invalid guarded key-hold step in {flowId}: {step.Label}");
+            case "key" or "wait" or "detect" or "mouse" or "keyhold":
                 break;
             default:
                 throw new InvalidDataException($"Unknown step kind '{step.Kind}' in {flowId}.");

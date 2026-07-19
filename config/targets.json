@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "1984-ferrari-288-gto",
+      "year": 1984,
+      "make": "Ferrari",
+      "model": "288 GTO",
+      "aliases": [
+        "Ferrari 288 GTO",
+        "288 GTO",
+        "288 GTO '84"
+      ]
+    },
+    {
+      "id": "2012-ferrari-599xx-evolution",
+      "year": 2012,
+      "make": "Ferrari",
+      "model": "599XX Evolution",
+      "aliases": [
+        "Ferrari 599XX Evolution",
+        "599XX Evolution",
+        "599XX Evo",
+        "599XX Evolution '12"
+      ]
+    },
+    {
+      "id": "2019-ferrari-f8-tributo",
+      "year": 2019,
+      "make": "Ferrari",
+      "model": "F8 Tributo",
+      "aliases": [
+        "Ferrari F8 Tributo",
+        "F8 Tributo",
+        "F8 Tributo '19"
+      ]
+    },
+    {
+      "id": "2012-lamborghini-aventador-lp700-4",
+      "year": 2012,
+      "make": "Lamborghini",
+      "model": "Aventador LP700-4",
+      "aliases": [
+        "Lamborghini Aventador LP700-4",
+        "Aventador LP700-4",
+        "Aventador '12",
+        "Aventador"
+      ]
+    },
+    {
+      "id": "2011-lamborghini-sesto-elemento",
+      "year": 2011,
+      "make": "Lamborghini",
+      "model": "Sesto Elemento",
+      "aliases": [
+        "Lamborghini Sesto Elemento",
+        "Sesto Elemento",
+        "Lambo Sesto"
+      ]
+    },
+    {
+      "id": "1999-lamborghini-diablo-gtr",
+      "year": 1999,
+      "make": "Lamborghini",
+      "model": "Diablo GTR",
+      "aliases": [
+        "Lamborghini Diablo GTR",
+        "Diablo GTR",
+        "Diablo GTR '99"
+      ]
+    }
+  ]
+}
