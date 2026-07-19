@@ -49,6 +49,7 @@ public sealed class ValidationSessionController
     private int _recognitionRetries;
     private int _duplicateObservations;
     private int _tickInProgress;
+    private int _observationGeneration;
 
     public ValidationSessionController(
         SafetySettings safety,
@@ -70,6 +71,11 @@ public sealed class ValidationSessionController
 
     public void StartOrResume()
     {
+        if (Snapshot.State == ValidationSessionState.Running)
+        {
+            return;
+        }
+
         if (Snapshot.State is ValidationSessionState.Stopped or
             ValidationSessionState.CycleComplete or
             ValidationSessionState.TargetFound)
@@ -92,6 +98,8 @@ public sealed class ValidationSessionController
             AddLog("검증 세션 재개.");
         }
 
+        Interlocked.Increment(ref _observationGeneration);
+
         Publish(
             ValidationSessionState.Running,
             "FH6 화면 대기 중",
@@ -105,6 +113,7 @@ public sealed class ValidationSessionController
             return;
         }
 
+        Interlocked.Increment(ref _observationGeneration);
         AddLog("검증 세션 일시정지.");
         Publish(
             ValidationSessionState.Paused,
@@ -119,6 +128,7 @@ public sealed class ValidationSessionController
             return;
         }
 
+        Interlocked.Increment(ref _observationGeneration);
         AddLog($"검증 세션 중지: {reason}");
         _stopwatch.Stop();
         Publish(
@@ -137,7 +147,14 @@ public sealed class ValidationSessionController
 
         try
         {
+            var observationGeneration = Volatile.Read(ref _observationGeneration);
             var observation = await Task.Run(ObserveForeground);
+            if (Snapshot.State != ValidationSessionState.Running ||
+                observationGeneration != Volatile.Read(ref _observationGeneration))
+            {
+                return;
+            }
+
             ApplyObservation(observation);
         }
         finally
