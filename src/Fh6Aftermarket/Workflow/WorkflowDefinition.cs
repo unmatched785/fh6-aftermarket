@@ -20,4 +20,5 @@ public sealed record WorkflowStep(
     [property: JsonPropertyName("repeat")] int? Repeat = null,
     [property: JsonPropertyName("anchor")] string? Anchor = null,
     [property: JsonPropertyName("timeoutMs")] int? TimeoutMs = null,
-    [property: JsonPropertyName("target")] string? Target = null);
+    [property: JsonPropertyName("target")] string? Target = null,
+    [property: JsonPropertyName("maximumDurationMs")] int? MaximumDurationMs = null);

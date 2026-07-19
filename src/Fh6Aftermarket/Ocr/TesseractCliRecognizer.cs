@@ -13,15 +13,33 @@ public sealed record OcrAttempt(
 
 public sealed record OcrRecognition(IReadOnlyList<OcrAttempt> Attempts)
 {
+    private const double MinimumReadableWordConfidence = 70;
+
     public string CombinedText => string.Join(
         " ",
         Attempts.Select(attempt => attempt.Text).Where(text => !string.IsNullOrWhiteSpace(text)));
 
-    public bool HasReadableText => Attempts.Any(attempt =>
+    public OcrAttempt? PreferredVehicleNameAttempt => Attempts
+        .Where(IsReadable)
+        .OrderBy(attempt => attempt.PageSegmentationMode switch
+        {
+            7 => 0,
+            13 => 1,
+            11 => 2,
+            _ => 3
+        })
+        .ThenByDescending(attempt => attempt.BestWordConfidence)
+        .FirstOrDefault();
+
+    public bool HasReadableText => PreferredVehicleNameAttempt is not null;
+
+    private static bool IsReadable(OcrAttempt attempt)
     {
         var normalized = TargetTextMatcher.Normalize(attempt.Text);
-        return normalized.Length >= 4 && normalized.Count(char.IsLetter) >= 3;
-    });
+        return attempt.BestWordConfidence >= MinimumReadableWordConfidence &&
+               normalized.Length >= 4 &&
+               normalized.Count(char.IsLetter) >= 3;
+    }
 }
 
 public sealed class TesseractCliRecognizer

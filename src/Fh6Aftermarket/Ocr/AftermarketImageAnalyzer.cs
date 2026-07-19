@@ -16,10 +16,12 @@ public sealed record BannerOcrResult(
 
 public sealed record AftermarketScanResult(
     AftermarketScanState State,
-    IReadOnlyList<BannerOcrResult> Banners)
+    IReadOnlyList<BannerOcrResult> Banners,
+    int SaleIconCount = 0)
 {
     public int ReadableBannerCount => Banners.Count(banner => banner.Recognition.HasReadableText);
     public int TargetCount => Banners.Count(banner => banner.TargetMatches.Count > 0);
+    public bool HasUnmatchedSaleIcon => SaleIconCount > Banners.Count;
 }
 
 public sealed class AftermarketImageAnalyzer
@@ -37,8 +39,8 @@ public sealed class AftermarketImageAnalyzer
 
     public AftermarketScanResult Analyze(Bitmap image)
     {
-        var regions = SellingBannerDetector.Find(image);
-        var banners = regions
+        var detection = SellingBannerDetector.Inspect(image);
+        var banners = detection.Banners
             .Select(region =>
             {
                 var recognition = _recognizer.Recognize(image, region.TextRegion);
@@ -49,10 +51,12 @@ public sealed class AftermarketImageAnalyzer
 
         var state = banners.Any(banner => banner.TargetMatches.Count > 0)
             ? AftermarketScanState.TargetFound
-            : banners.Length > 0 && banners.All(banner => banner.Recognition.HasReadableText)
+            : banners.Length > 0 &&
+              !detection.HasUnmatchedSaleIcon &&
+              banners.All(banner => banner.Recognition.HasReadableText)
                 ? AftermarketScanState.Clear
                 : AftermarketScanState.Uncertain;
 
-        return new AftermarketScanResult(state, banners);
+        return new AftermarketScanResult(state, banners, detection.SaleIconCount);
     }
 }

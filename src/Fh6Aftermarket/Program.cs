@@ -7,11 +7,25 @@ using Fh6Aftermarket.Safety;
 using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
+using Fh6Aftermarket.Gui;
+
+if (args.Length == 1 && args[0] == "--gui")
+{
+    GuiLauncher.Run();
+    return;
+}
 
 if (args.Length == 2 && args[0] == "--inspect-image")
 {
     using var image = new Bitmap(args[1]);
     PrintObservation(AftermarketScreenObserver.Observe(image));
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--inspect-map-icons")
+{
+    using var image = new Bitmap(args[1]);
+    PrintMapIconClusters(AftermarketMapIconClusterDetector.Inspect(image));
     return;
 }
 
@@ -61,6 +75,21 @@ if (args.Length is 4 or 6 && args[0] == "--analyze-aftermarket-image" && args[2]
         new TesseractCliRecognizer("tesseract", tessdataPath),
         new TargetTextMatcher(catalog));
     PrintAftermarketScan(analyzer.Analyze(image));
+    return;
+}
+
+if (args.Length is 4 or 6 && args[0] == "--analyze-map-card" && args[2] == "--targets")
+{
+    var tessdataPath = args.Length == 6 && args[4] == "--tessdata-dir"
+        ? args[5]
+        : GetDefaultTessdataPath();
+
+    using var image = new Bitmap(args[1]);
+    var catalog = TargetCatalog.Load(args[3]);
+    var analyzer = new AftermarketMapCardAnalyzer(
+        new TesseractCliRecognizer("tesseract", tessdataPath),
+        new TargetTextMatcher(catalog));
+    PrintMapCardScan(analyzer.Analyze(image));
     return;
 }
 
@@ -150,10 +179,13 @@ if (args.Length == 4 && args[0] == "--config" && args[2] == "--print-flow")
 
 Console.WriteLine("FH6 Aftermarket Watcher - observer mode (input disabled)");
 Console.WriteLine("Usage:");
+Console.WriteLine("  --gui");
 Console.WriteLine("  --inspect-image <image-path>");
+Console.WriteLine("  --inspect-map-icons <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
 Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
 Console.WriteLine("  --analyze-aftermarket-image <image> --targets <targets.json> [--tessdata-dir <dir>]");
+Console.WriteLine("  --analyze-map-card <image> --targets <targets.json> [--tessdata-dir <dir>]");
 Console.WriteLine("  --watch-foreground --targets <targets.json> [--title-contains <text>] [--interval-ms <n>] [--max-samples <n>]");
 Console.WriteLine("  --config <workflow.json> --validate");
 Console.WriteLine("  --config <workflow.json> --print-flow <flow-id>");
@@ -179,6 +211,8 @@ static void PrintFlow(string configPath, string flowId)
             "key" => $"{step.Key} x{step.Repeat}",
             "wait" or "detect" => $"{step.Anchor} (timeout {step.TimeoutMs} ms)",
             "mouse" => step.Target,
+            "keyHold" => $"{step.Key} until {step.Anchor} " +
+                         $"(max {step.MaximumDurationMs} ms, timeout {step.TimeoutMs} ms)",
             _ => "unknown"
         };
 
@@ -206,12 +240,29 @@ static void PrintObservation(ScreenObservation observation)
     }
 }
 
+static void PrintMapIconClusters(AftermarketMapIconClusterObservation observation)
+{
+    Console.WriteLine($"Map icon cluster candidates: {observation.Candidates.Count}");
+    for (var index = 0; index < observation.Candidates.Count; index++)
+    {
+        var candidate = observation.Candidates[index];
+        Console.WriteLine(
+            $"  #{index + 1}: bounds=({candidate.Bounds.X},{candidate.Bounds.Y}," +
+            $"{candidate.Bounds.Width},{candidate.Bounds.Height}) " +
+            $"green={candidate.GreenPixelCount}");
+        Console.WriteLine(
+            $"      clicks: {string.Join(", ", candidate.ClickTargets.Select(point => $"({point.X},{point.Y})"))}");
+    }
+}
+
 static void PrintAftermarketScan(AftermarketScanResult result)
 {
     Console.WriteLine($"Scan state: {result.State}");
+    Console.WriteLine($"Selling icons: {result.SaleIconCount}");
     Console.WriteLine($"Selling banners: {result.Banners.Count}");
     Console.WriteLine($"Readable banners: {result.ReadableBannerCount}");
     Console.WriteLine($"Target banners: {result.TargetCount}");
+    Console.WriteLine($"Unmatched selling icon: {result.HasUnmatchedSaleIcon}");
 
     for (var index = 0; index < result.Banners.Count; index++)
     {
@@ -223,12 +274,52 @@ static void PrintAftermarketScan(AftermarketScanResult result)
             $"{banner.Region.TextRegion.Width},{banner.Region.TextRegion.Height})");
         Console.WriteLine($"      OCR: {banner.Recognition.CombinedText}");
 
+        foreach (var attempt in banner.Recognition.Attempts)
+        {
+            Console.WriteLine(
+                $"      psm={attempt.PageSegmentationMode} " +
+                $"confidence={attempt.BestWordConfidence:F1}: {attempt.Text}");
+        }
+
         foreach (var match in banner.TargetMatches)
         {
             Console.WriteLine(
                 $"      TARGET: {match.Target.DisplayName} via '{match.Alias}' " +
                 $"score={match.Score:F3}");
         }
+    }
+}
+
+static void PrintMapCardScan(AftermarketMapCardScanResult result)
+{
+    Console.WriteLine($"Map card state: {result.State}");
+    if (result.Region is null || result.Recognition is null)
+    {
+        Console.WriteLine("Map card was not detected.");
+        return;
+    }
+
+    Console.WriteLine(
+        $"Header: ({result.Region.Header.X},{result.Region.Header.Y}," +
+        $"{result.Region.Header.Width},{result.Region.Header.Height})");
+    Console.WriteLine(
+        $"Vehicle name region: ({result.Region.VehicleNameRegion.X}," +
+        $"{result.Region.VehicleNameRegion.Y},{result.Region.VehicleNameRegion.Width}," +
+        $"{result.Region.VehicleNameRegion.Height})");
+    Console.WriteLine($"OCR: {result.Recognition.CombinedText}");
+
+    foreach (var attempt in result.Recognition.Attempts)
+    {
+        Console.WriteLine(
+            $"  psm={attempt.PageSegmentationMode} " +
+            $"confidence={attempt.BestWordConfidence:F1}: {attempt.Text}");
+    }
+
+    foreach (var match in result.TargetMatches)
+    {
+        Console.WriteLine(
+            $"  TARGET: {match.Target.DisplayName} via '{match.Alias}' " +
+            $"score={match.Score:F3}");
     }
 }
 

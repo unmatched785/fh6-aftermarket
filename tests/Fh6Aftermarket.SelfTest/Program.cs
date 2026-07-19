@@ -22,6 +22,9 @@ if (ScreenGeometry.TryCreate(3440, 1440, out _))
 CheckSyntheticMarker();
 CheckSyntheticSelectedCard();
 CheckSyntheticSellingBanner();
+CheckSyntheticMapCard();
+CheckSyntheticMapIconCluster();
+CheckOcrReadabilityGuard();
 CheckReadOnlyWatcherTitleGuard();
 CheckReadOnlyWatcherTargetStop();
 
@@ -33,6 +36,7 @@ CheckFlow(workflow, "kor-to-eng", expectedStepCount: 10, expectedAutomationReady
 CheckFlow(workflow, "eng-to-kor", expectedStepCount: 9, expectedAutomationReady: false);
 CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19, expectedAutomationReady: false);
 CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8, expectedAutomationReady: false);
+CheckFlow(workflow, "inspect-aftermarket-cars-on-map", expectedStepCount: 19, expectedAutomationReady: false);
 CheckOneShotRunner(workflow);
 
 var targetsPath = Path.Combine(repoRoot, "config", "targets.json");
@@ -48,10 +52,18 @@ CheckNoTarget("Urus '19");
 
 var safetyPath = Path.Combine(repoRoot, "config", "safety.json");
 var safetyJson = File.ReadAllText(safetyPath);
+var safetySettings = SafetySettingsLoader.Load(safetyPath);
 
 if (!safetyJson.Contains("\"automationEnabled\": false", StringComparison.Ordinal))
 {
     failures.Add("Automation must be disabled in the initial safety config.");
+}
+
+if (safetySettings.OnUncertainRecognition != "retry_then_pause" ||
+    safetySettings.OnDuplicateRecognition != "retry_nearby_then_next_point" ||
+    safetySettings.OnFocusLost != "pause")
+{
+    failures.Add("Recognition failures and focus loss must retry or pause, not hard-stop.");
 }
 
 if (failures.Count > 0)
@@ -69,10 +81,13 @@ if (failures.Count > 0)
 Console.WriteLine("SELF-TEST PASSED");
 Console.WriteLine("- FHD/QHD/4K normalization");
 Console.WriteLine("- ultrawide rejection");
-Console.WriteLine("- four workflow definitions");
+Console.WriteLine("- five workflow definitions, including guarded map-card inspection");
 Console.WriteLine("- automation disabled by default");
+Console.WriteLine("- duplicate/OCR/focus failures retry or pause instead of hard-stop");
 Console.WriteLine("- synthetic marker and selected-card detection");
 Console.WriteLine("- synthetic selling-banner detection");
+Console.WriteLine("- synthetic map-card header and vehicle-name region detection");
+Console.WriteLine("- synthetic overlapping map-icon cluster detection");
 Console.WriteLine("- read-only watcher title guard and target stop");
 Console.WriteLine("- six target vehicles, display aliases, and OCR-tolerant matching");
 Console.WriteLine("- one-shot safety gate, exact foreground guard, and 15-key KOR-to-ENG plan");
@@ -146,12 +161,107 @@ void CheckSyntheticSellingBanner()
         graphics.FillRectangle(green, 620, 200, 330, 5);
     }
 
-    var regions = SellingBannerDetector.Find(bitmap);
-    if (regions.Count != 1 || regions[0].GreenLine.Width != 330)
+    var detection = SellingBannerDetector.Inspect(bitmap);
+    var regions = detection.Banners;
+    if (regions.Count != 1 || regions[0].GreenLine.Width != 330 || detection.SaleIconCount != 1)
     {
         failures.Add(
-            $"Synthetic selling banner expected one 330px line, got " +
-            $"{regions.Count} / {(regions.Count > 0 ? regions[0].GreenLine.Width : 0)}.");
+            $"Synthetic selling banner expected one icon and one 330px line, got " +
+            $"icons={detection.SaleIconCount}, regions={regions.Count}, " +
+            $"width={(regions.Count > 0 ? regions[0].GreenLine.Width : 0)}.");
+    }
+}
+
+void CheckOcrReadabilityGuard()
+{
+    var noisy = new OcrRecognition([
+        new OcrAttempt(13, "Petit PY (eae |)", 48.6),
+        new OcrAttempt(7, string.Empty, -1),
+        new OcrAttempt(11, "ca", 61)
+    ]);
+    if (noisy.HasReadableText)
+    {
+        failures.Add("Low-confidence overlay text must not qualify as readable vehicle text.");
+    }
+
+    var vehicle = new OcrRecognition([
+        new OcrAttempt(13, "Ferrari 812", 92.7),
+        new OcrAttempt(7, string.Empty, -1),
+        new OcrAttempt(11, string.Empty, -1)
+    ]);
+    if (!vehicle.HasReadableText)
+    {
+        failures.Add("High-confidence vehicle text must qualify as readable.");
+    }
+
+    var mixed = new OcrRecognition([
+        new OcrAttempt(13, "MC12 Corsa '08", 88.4),
+        new OcrAttempt(7, "MC12 Corsa '08", 91.2),
+        new OcrAttempt(11, "MC12 Corsa '08 localized body noise", 97.5)
+    ]);
+    if (mixed.PreferredVehicleNameAttempt?.PageSegmentationMode != 7)
+    {
+        failures.Add("Single-line OCR must be preferred over a noisier sparse-text result.");
+    }
+}
+
+void CheckSyntheticMapCard()
+{
+    using var bitmap = new Bitmap(1920, 1080);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        graphics.Clear(Color.FromArgb(40, 70, 45));
+        using var blue = new SolidBrush(Color.FromArgb(30, 25, 165));
+        using var white = new SolidBrush(Color.FromArgb(245, 245, 245));
+        graphics.FillRectangle(blue, 540, 150, 420, 36);
+        graphics.FillRectangle(white, 540, 186, 420, 210);
+    }
+
+    if (!AftermarketMapCardDetector.TryFind(bitmap, out var region) || region is null)
+    {
+        failures.Add("Synthetic map card was not detected.");
+        return;
+    }
+
+    if (region.Header.Width != 420 ||
+        region.VehicleNameRegion.X != 552 ||
+        region.VehicleNameRegion.Y != 190 ||
+        region.VehicleNameRegion.Height != 36)
+    {
+        failures.Add(
+            $"Synthetic map card geometry mismatch: header={region.Header}, " +
+            $"name={region.VehicleNameRegion}.");
+    }
+}
+
+void CheckSyntheticMapIconCluster()
+{
+    using var bitmap = new Bitmap(1920, 1080);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        graphics.Clear(Color.FromArgb(30, 65, 40));
+        using var green = new SolidBrush(Color.FromArgb(0, 175, 105));
+        graphics.FillEllipse(green, 700, 400, 50, 50);
+        graphics.FillRectangle(green, 675, 425, 60, 35);
+        graphics.FillEllipse(green, 715, 415, 50, 50);
+        graphics.FillRectangle(green, 690, 440, 60, 35);
+        graphics.FillEllipse(green, 730, 430, 50, 50);
+        graphics.FillRectangle(green, 705, 455, 60, 35);
+    }
+
+    var observation = AftermarketMapIconClusterDetector.Inspect(bitmap);
+    if (!observation.HasSingleCluster)
+    {
+        failures.Add(
+            $"Synthetic map icon cluster expected one candidate, got " +
+            $"{observation.Candidates.Count}.");
+        return;
+    }
+
+    if (observation.Candidates[0].ClickTargets.Count != 3 ||
+        observation.Candidates[0].ClickTargets.Distinct().Count() != 3)
+    {
+        failures.Add("Synthetic map icon cluster must provide three distinct click targets.");
     }
 }
 

@@ -8,12 +8,22 @@ public sealed record SellingBannerRegion(
     Rectangle GreenLine,
     Rectangle TextRegion);
 
+public sealed record SellingSceneDetection(
+    IReadOnlyList<SellingBannerRegion> Banners,
+    int SaleIconCount)
+{
+    public bool HasUnmatchedSaleIcon => SaleIconCount > Banners.Count;
+}
+
 public static class SellingBannerDetector
 {
     private const int CanonicalWidth = 1920;
     private const int CanonicalHeight = 1080;
 
     public static IReadOnlyList<SellingBannerRegion> Find(Bitmap source)
+        => Inspect(source).Banners;
+
+    public static SellingSceneDetection Inspect(Bitmap source)
     {
         using var bitmap = To24Bit(source);
         var pixels = ReadPixels(bitmap);
@@ -104,10 +114,144 @@ public static class SellingBannerDetector
             }
         }
 
-        return results
+        var orderedResults = results
             .OrderBy(region => region.GreenLine.Top)
             .ThenBy(region => region.GreenLine.Left)
             .ToArray();
+
+        return new SellingSceneDetection(
+            orderedResults,
+            CountSaleIcons(pixels, bitmap.Width, bitmap.Height, scanBottom, scale));
+    }
+
+    private static int CountSaleIcons(
+        RgbColor[] pixels,
+        int imageWidth,
+        int imageHeight,
+        int scanBottom,
+        double scale)
+    {
+        var visited = new bool[imageWidth * scanBottom];
+        var queue = new Queue<int>();
+        var candidates = new List<IconComponent>();
+
+        for (var y = 0; y < scanBottom; y++)
+        {
+            for (var x = 0; x < imageWidth; x++)
+            {
+                var index = y * imageWidth + x;
+                if (visited[index])
+                {
+                    continue;
+                }
+
+                visited[index] = true;
+                if (!IsSellingGreen(pixels[index]))
+                {
+                    continue;
+                }
+
+                var left = x;
+                var right = x;
+                var top = y;
+                var bottom = y;
+                var greenPixels = 0;
+                queue.Enqueue(index);
+
+                while (queue.Count > 0)
+                {
+                    var current = queue.Dequeue();
+                    var currentY = current / imageWidth;
+                    var currentX = current - currentY * imageWidth;
+                    greenPixels++;
+                    left = Math.Min(left, currentX);
+                    right = Math.Max(right, currentX);
+                    top = Math.Min(top, currentY);
+                    bottom = Math.Max(bottom, currentY);
+
+                    Visit(currentX - 1, currentY);
+                    Visit(currentX + 1, currentY);
+                    Visit(currentX, currentY - 1);
+                    Visit(currentX, currentY + 1);
+                }
+
+                var bounds = Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
+                var canonicalWidth = bounds.Width / scale;
+                var canonicalHeight = bounds.Height / scale;
+                var canonicalArea = greenPixels / Math.Max(0.01, scale * scale);
+
+                if (canonicalWidth is >= 24 and <= 150 &&
+                    canonicalHeight is >= 20 and <= 150 &&
+                    canonicalArea >= 180)
+                {
+                    candidates.Add(new IconComponent(bounds, greenPixels));
+                }
+
+                void Visit(int neighborX, int neighborY)
+                {
+                    if (neighborX < 0 || neighborX >= imageWidth ||
+                        neighborY < 0 || neighborY >= scanBottom)
+                    {
+                        return;
+                    }
+
+                    var neighbor = neighborY * imageWidth + neighborX;
+                    if (visited[neighbor])
+                    {
+                        return;
+                    }
+
+                    visited[neighbor] = true;
+                    if (IsSellingGreen(pixels[neighbor]))
+                    {
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+        }
+
+        var mergePadding = Math.Max(2, (int)Math.Round(24 * scale));
+        var merged = new List<IconComponent>();
+        foreach (var candidate in candidates.OrderBy(component => component.Bounds.Left))
+        {
+            var matchIndex = merged.FindIndex(component =>
+                Rectangle.Intersect(
+                    Inflate(component.Bounds, mergePadding, imageWidth, imageHeight),
+                    candidate.Bounds).Width > 0);
+
+            if (matchIndex < 0)
+            {
+                merged.Add(candidate);
+                continue;
+            }
+
+            var match = merged[matchIndex];
+            merged[matchIndex] = new IconComponent(
+                Rectangle.Union(match.Bounds, candidate.Bounds),
+                match.GreenPixels + candidate.GreenPixels);
+        }
+
+        return merged.Count(component =>
+        {
+            var canonicalWidth = component.Bounds.Width / scale;
+            var canonicalHeight = component.Bounds.Height / scale;
+            var canonicalArea = component.GreenPixels / Math.Max(0.01, scale * scale);
+            return canonicalWidth is >= 45 and <= 180 &&
+                   canonicalHeight is >= 35 and <= 160 &&
+                   canonicalArea >= 420;
+        });
+    }
+
+    private static Rectangle Inflate(Rectangle rectangle, int padding, int width, int height)
+    {
+        return Clamp(
+            Rectangle.FromLTRB(
+                rectangle.Left - padding,
+                rectangle.Top - padding,
+                rectangle.Right + padding,
+                rectangle.Bottom + padding),
+            width,
+            height);
     }
 
     private static void AddRun(List<LineGroup> groups, int start, int end, int y)
@@ -250,6 +394,8 @@ public static class SellingBannerDetector
             Bottom = Math.Max(Bottom, y);
         }
     }
+
+    private sealed record IconComponent(Rectangle Bounds, int GreenPixels);
 
     private readonly record struct RgbColor(byte R, byte G, byte B);
 }

@@ -25,6 +25,24 @@ public sealed record SafetySettings
 
     [JsonPropertyName("maxKeysPerOneShot")]
     public int MaxKeysPerOneShot { get; init; } = 32;
+
+    [JsonPropertyName("maxRecognitionRetriesPerPoint")]
+    public int MaxRecognitionRetriesPerPoint { get; init; } = 3;
+
+    [JsonPropertyName("maxDuplicateRetriesPerPoint")]
+    public int MaxDuplicateRetriesPerPoint { get; init; } = 2;
+
+    [JsonPropertyName("maxFullScanRetries")]
+    public int MaxFullScanRetries { get; init; } = 2;
+
+    [JsonPropertyName("onUncertainRecognition")]
+    public string OnUncertainRecognition { get; init; } = "retry_then_pause";
+
+    [JsonPropertyName("onDuplicateRecognition")]
+    public string OnDuplicateRecognition { get; init; } = "retry_nearby_then_next_point";
+
+    [JsonPropertyName("onFocusLost")]
+    public string OnFocusLost { get; init; } = "pause";
 }
 
 public static class SafetySettingsLoader
@@ -70,6 +88,20 @@ public static class SafetySettingsLoader
         if (settings.MaxKeysPerOneShot is < 1 or > 100)
         {
             throw new InvalidDataException("One-shot key limit must be between 1 and 100.");
+        }
+
+        if (settings.MaxRecognitionRetriesPerPoint is < 1 or > 10 ||
+            settings.MaxDuplicateRetriesPerPoint is < 1 or > 10 ||
+            settings.MaxFullScanRetries is < 1 or > 5)
+        {
+            throw new InvalidDataException("Recognition retry limits are outside the safe range.");
+        }
+
+        if (settings.OnUncertainRecognition != "retry_then_pause" ||
+            settings.OnDuplicateRecognition != "retry_nearby_then_next_point" ||
+            settings.OnFocusLost != "pause")
+        {
+            throw new InvalidDataException("Unsafe recognition or focus-loss policy.");
         }
     }
 }

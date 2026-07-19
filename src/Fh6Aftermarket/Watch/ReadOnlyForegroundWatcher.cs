@@ -114,7 +114,8 @@ public sealed class ReadOnlyForegroundWatcher
                 lastScan = _analyze(capture.Image);
                 _writeLine(
                     $"[{sample}/{_options.MaxSamples}] {lastScan.State}: " +
-                    $"banners={lastScan.Banners.Count}, readable={lastScan.ReadableBannerCount}, " +
+                    $"icons={lastScan.SaleIconCount}, banners={lastScan.Banners.Count}, " +
+                    $"readable={lastScan.ReadableBannerCount}, " +
                     $"targets={lastScan.TargetCount}");
 
                 if (lastScan.State == AftermarketScanState.TargetFound)

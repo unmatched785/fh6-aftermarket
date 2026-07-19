@@ -16,7 +16,11 @@
   "maxKeysPerOneShot": 32,
   "maxCycles": 3,
   "maxRuntimeMinutes": 15,
-  "onUncertainRecognition": "stop",
-  "onFocusLost": "stop",
+  "maxRecognitionRetriesPerPoint": 3,
+  "maxDuplicateRetriesPerPoint": 2,
+  "maxFullScanRetries": 2,
+  "onUncertainRecognition": "retry_then_pause",
+  "onDuplicateRecognition": "retry_nearby_then_next_point",
+  "onFocusLost": "pause",
   "resumeAfterProcessRestart": false
 }
