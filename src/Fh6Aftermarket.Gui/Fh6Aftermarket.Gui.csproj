@@ -7,11 +7,23 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyName>Fh6Aftermarket.Gui</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Fh6Aftermarket\Fh6Aftermarket.csproj" />
     <EmbeddedResource Include="Assets\aftermarket.bg.png"
                       LogicalName="Fh6Aftermarket.Gui.aftermarket.bg.png" />
+    <Content Include="..\..\config\targets.json"
+             Link="config\targets.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="Always" />
+    <Content Include="..\..\config\safety.json"
+             Link="config\safety.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="Always" />
+    <Content Include="..\..\config\official-cars.json"
+             Link="config\official-cars.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="Always" />
   </ItemGroup>
 </Project>

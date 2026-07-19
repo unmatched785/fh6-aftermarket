@@ -12,7 +12,8 @@ public enum AftermarketScanState
 public sealed record BannerOcrResult(
     SellingBannerRegion Region,
     OcrRecognition Recognition,
-    IReadOnlyList<TargetTextMatch> TargetMatches);
+    IReadOnlyList<TargetTextMatch> TargetMatches,
+    CarNameResolution CarResolution);
 
 public sealed record AftermarketScanResult(
     AftermarketScanState State,
@@ -44,8 +45,9 @@ public sealed class AftermarketImageAnalyzer
             .Select(region =>
             {
                 var recognition = _recognizer.Recognize(image, region.TextRegion);
-                var matches = _matcher.Match(recognition.CombinedText);
-                return new BannerOcrResult(region, recognition, matches);
+                var resolution = _matcher.ResolvePreferredCar(recognition);
+                var matches = _matcher.Match(recognition);
+                return new BannerOcrResult(region, recognition, matches, resolution);
             })
             .ToArray();
 
@@ -53,7 +55,9 @@ public sealed class AftermarketImageAnalyzer
             ? AftermarketScanState.TargetFound
             : banners.Length > 0 &&
               !detection.HasUnmatchedSaleIcon &&
-              banners.All(banner => banner.Recognition.HasReadableText)
+              banners.All(banner =>
+                  banner.Recognition.HasReadableText &&
+                  banner.CarResolution.IsKnown)
                 ? AftermarketScanState.Clear
                 : AftermarketScanState.Uncertain;
 

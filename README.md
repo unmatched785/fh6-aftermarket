@@ -13,6 +13,8 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 모든 화면 좌표는 1920×1080 게임 클라이언트 영역을 기준으로 정규화합니다.
 - FHD, QHD, 4K의 16:9 화면만 허용합니다.
 - 화면 상태나 OCR 결과가 불확실하면 제한 횟수만 재시도한 뒤 사용자 확인 상태로 전환합니다.
+- OCR 차량명이 FH6 Meta 공식 차량 DB의 ID로 확정된 경우만 비목표 차량 수에 포함합니다.
+- OCR 모드 중 하나라도 여섯 목표 차량을 가리키면 다른 판독 결과보다 우선해 즉시 멈춥니다.
 - 중복 차량명은 커서 문제일 수 있으므로 실패나 종료로 취급하지 않습니다.
 - F2는 전역 등록과 50ms 키 상태 감시를 함께 사용하는 긴급 중단키입니다.
 - 원본 캡처와 실행 로그는 개인정보 보호를 위해 Git에 포함하지 않습니다.
@@ -26,6 +28,7 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 설정 파일 구조 및 자체 검사 프로그램
 - 화면 앵커와 다음 구현 단계 문서
 - 여섯 한정 차량의 정식명·화면 축약명 사전과 OCR 오인식 허용 매처
+- `fh6meta.com` 운영 차량 목록에서 갱신한 627대 공식 ID 정규화 DB
 - 녹색 판매 배너 검출, 차량명 영역 분리, Tesseract OCR
 - `TargetFound` / `Clear` / `Uncertain` 안전 판정
 - 실화면 검증을 통과한 KOR(시스템 언어)→English US 1회 재시작 흐름
@@ -35,6 +38,8 @@ FH6 애프터마켓에서 목표 차량을 화면 판독으로 찾고, 목표가
 - 입력·화면 전환·빠른 이동·재시작·재시작 후 화면을 목적별로 묶은 GUI 타이밍 설정
 - 겹친 초록 차량 아이콘 군집과 지도 차량 카드의 해상도 정규화 판독
 - 세 차량 아이콘 자동 호버·OCR, 목표 발견 경고음, 비목표 시 ENG→KOR 1회 재시작
+- v0.2.1: FH6 Meta 627대 공식 차량 ID 정규화, OCR 다중 판독의 목표 우선 정지,
+  DB 미확정 문자열의 재시작 차단을 추가
 - v0.2.0: 빠른 이동 뒤 차량 이동을 제거하고, 겹친 아이콘을 1시·좌하단·상단 순서로
   호버하는 고정 배치를 3840×2160 실게임에서 검증
 
@@ -48,7 +53,8 @@ Fh6Aftermarket.Gui.exe
 ```
 
 Windows 10/11 x64와 FH6의 16:9 FHD/QHD/4K 화면을 지원합니다. 차량명 OCR을 위해
-Tesseract와 `eng+kor` 언어 데이터가 필요합니다.
+Tesseract 실행 파일이 필요하며, v0.2.1 ZIP에는 `eng+kor` 언어 데이터가 포함됩니다.
+앱은 동봉 경로, 환경 변수, 실제 Scoop 루트, Program Files, PATH 순서로 설치 위치를 찾습니다.
 
 1. GUI를 실행합니다.
 2. GUI에서 타이밍 값을 PC 환경에 맞게 조정합니다. 재시작 후 첫 Enter 대기는
@@ -70,6 +76,9 @@ Tesseract와 `eng+kor` 언어 데이터가 필요합니다.
 
 FH6가 전경이 아니면 캡처만 대기하며, OCR이 세 번 연속 불확실하면 `확인 필요` 상태가 됩니다.
 커서를 조정한 뒤 `재개`를 누르면 됩니다. 세션 기록은 Git에서 제외된 `logs` 폴더에 저장됩니다.
+`LaFerrari = |`처럼 구두점이 섞인 판독도 공식 `2013 Ferrari LaFerrari`로 정규화됩니다.
+반대로 공식 차량 ID로 확정되지 않는 문자열은 읽을 수 있어 보여도 3대 완료 수에 들어가지 않으며,
+그 결과로 클라이언트를 재시작하지 않습니다.
 
 실전 1회 빌드는 KOR/ENG 오픈월드 정차 상태에서 시작합니다. FH6를 전경에 둔 채 F1을 누르면
 정확한 창 제목과 16:9 화면을 확인하고, 지구본 빠른 이동 지점에서 움직이지 않은 채
@@ -87,6 +96,13 @@ Aftermarket Cars만 활성화한 지도를 최대 확대합니다.
 ```powershell
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe build .\Fh6Aftermarket.slnx
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\tests\Fh6Aftermarket.SelfTest\Fh6Aftermarket.SelfTest.csproj
+```
+
+릴리스 전 공식 차량 DB는 FH6 Meta의 공개 운영 차량 목록에서 다시 생성합니다. 생성기는 공개
+페이지에 표시된 대수, 중복 ID, 여섯 목표 ID를 모두 검사한 뒤에만 파일을 바꿉니다.
+
+```powershell
+node .\tools\update-official-cars-from-fh6meta.mjs
 ```
 
 수동 흐름을 사람이 읽을 수 있는 형태로 확인할 수도 있습니다.
@@ -107,18 +123,29 @@ C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Af
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --capture-foreground .\captures\foreground.png
 ```
 
-OCR에서 얻었다고 가정한 텍스트를 목표 목록과 대조할 수 있습니다.
+OCR에서 얻었다고 가정한 텍스트를 공식 차량 DB로 정규화한 뒤 목표 목록과 대조할 수 있습니다.
 
 ```powershell
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --targets .\config\targets.json --match-text "Lambo Sesto"
 ```
 
-실제 차량 화면 OCR에는 Scoop의 Tesseract 본체와 언어 데이터가 필요합니다.
+실제 차량 화면 OCR에는 Tesseract 실행 파일이 필요합니다. 릴리스 ZIP 사용자는 언어 데이터가
+이미 포함되어 있으므로 Tesseract 본체만 설치하면 됩니다.
 
 ```powershell
 scoop install tesseract
+```
+
+소스 체크아웃에서 직접 실행하며 동봉 언어 데이터가 없을 때만 다음 패키지도 설치합니다.
+
+```powershell
 scoop install tesseract-languages
 ```
+
+표준 Program Files 설치와 사용자 지정 `SCOOP` 루트도 자동으로 찾습니다. 그래도 찾지 못하는
+특수 설치는 `FH6_TESSERACT_EXE`에 `tesseract.exe` 전체 경로를, `FH6_TESSDATA_DIR`에
+`eng.traineddata`와 `kor.traineddata`가 들어 있는 폴더를 지정할 수 있습니다. 시작 실패 창에는
+앱이 확인한 경로와 이 두 환경 변수 이름이 함께 표시됩니다.
 
 저장된 애프터마켓 화면에서 판매 배너를 세고 차량명을 판독할 수 있습니다. 앱은 Scoop
 언어 데이터 경로를 명시적으로 전달하므로 전역 `TESSDATA_PREFIX` 설정은 필요하지 않습니다.
