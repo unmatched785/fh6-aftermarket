@@ -40,7 +40,7 @@ CheckFlow(workflow, "kor-to-eng", expectedStepCount: 10, expectedAutomationReady
 CheckFlow(workflow, "eng-to-kor", expectedStepCount: 10, expectedAutomationReady: false);
 CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19, expectedAutomationReady: false);
 CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8, expectedAutomationReady: false);
-CheckFlow(workflow, "inspect-aftermarket-cars-on-map", expectedStepCount: 19, expectedAutomationReady: false);
+CheckFlow(workflow, "inspect-aftermarket-cars-on-map", expectedStepCount: 18, expectedAutomationReady: false);
 CheckOneShotRunner(workflow);
 
 var targetsPath = Path.Combine(repoRoot, "config", "targets.json");
@@ -299,10 +299,23 @@ void CheckSyntheticMapIconCluster()
         return;
     }
 
-    if (observation.Candidates[0].ClickTargets.Count != 3 ||
-        observation.Candidates[0].ClickTargets.Distinct().Count() != 3)
+    var cluster = observation.Candidates[0];
+    if (cluster.HoverTargets.Count != 3 ||
+        cluster.HoverTargets.Distinct().Count() != 3)
     {
-        failures.Add("Synthetic map icon cluster must provide three distinct click targets.");
+        failures.Add("Synthetic map icon cluster must provide three distinct hover targets.");
+    }
+
+    var primary = cluster.HoverTargets[0];
+    if (primary.X <= cluster.Bounds.Left + cluster.Bounds.Width / 2 ||
+        primary.Y >= cluster.Bounds.Top + cluster.Bounds.Height / 2)
+    {
+        failures.Add("Primary map hover target must start on the 1-o'clock side of the cluster.");
+    }
+
+    if (cluster.HoverTargets[2].Y >= primary.Y)
+    {
+        failures.Add("Third map hover target must enter above the first two icon layers.");
     }
 }
 
@@ -352,9 +365,6 @@ void CheckGroupedTimingSettings()
         InputDelayMilliseconds = 500,
         TransitionDelayMilliseconds = 1_800,
         FastTravelLoadingMilliseconds = 8_000,
-        ForwardDurationMilliseconds = 12_000,
-        SteeringKey = "A",
-        SteeringDurationMilliseconds = 350,
         RestartLoadingMilliseconds = 40_000,
         PostRestartFirstDelayMilliseconds = 15_000,
         PostRestartSecondDelayMilliseconds = 25_000,
@@ -379,9 +389,6 @@ void CheckGroupedTimingSettings()
     if (defaults.InputDelayMilliseconds != 850 ||
         defaults.TransitionDelayMilliseconds != 2_500 ||
         defaults.FastTravelLoadingMilliseconds != 15_000 ||
-        defaults.ForwardDurationMilliseconds != 5_000 ||
-        defaults.SteeringKey != "D" ||
-        defaults.SteeringDurationMilliseconds != 500 ||
         defaults.RestartLoadingMilliseconds != 60_000 ||
         defaults.PostRestartFirstDelayMilliseconds != 15_000 ||
         defaults.PostRestartSecondDelayMilliseconds != 30_000 ||
@@ -398,7 +405,6 @@ void CheckGroupedTimingSettings()
     if (slowerMachine.PointerSettleMilliseconds != 1_000 ||
         slowerMachine.StartDelayMilliseconds != 2_000 ||
         slowerMachine.PauseMenuSettleMilliseconds != 2_000 ||
-        slowerMachine.PostMovementSettleMilliseconds != 3_000 ||
         slowerMachine.MapZoomDurationMilliseconds != 6_000 ||
         slowerMachine.VehicleCardSettleMilliseconds != 2_000)
     {

@@ -87,7 +87,7 @@
       "automationReady": false,
       "steps": [
         { "kind": "detect", "anchor": "aftermarket-arrival", "timeoutMs": 30000, "label": "애프터마켓 도착 상태 확인" },
-        { "kind": "key", "key": "Enter", "repeat": 1, "label": "전체 지도 열기" },
+        { "kind": "key", "key": "M", "repeat": 1, "label": "전체 지도 열기" },
         { "kind": "wait", "anchor": "world-map-open", "timeoutMs": 30000, "label": "전체 지도 확인" },
         { "kind": "key", "key": "PageDown", "repeat": 1, "label": "지도 필터 열기" },
         { "kind": "detect", "anchor": "map-filter-all-row-focused", "timeoutMs": 10000, "label": "All 행 포커스 확인" },
@@ -98,11 +98,10 @@
         { "kind": "detect", "anchor": "map-filter-aftermarket-cars-checked", "timeoutMs": 10000, "label": "Aftermarket Cars 체크 상태 확인" },
         { "kind": "key", "key": "Escape", "repeat": 1, "label": "지도 필터 닫기" },
         { "kind": "wait", "anchor": "aftermarket-cars-filtered-map", "timeoutMs": 30000, "label": "Aftermarket Cars 단독 필터 지도 확인" },
-        { "kind": "detect", "anchor": "nearby-aftermarket-dealership-map-area", "timeoutMs": 10000, "label": "빠른 이동으로 대리점 근처에 도착한 지도인지 재확인" },
-        { "kind": "mouse", "target": "aftermarket-dealership-neighborhood-center", "label": "확대 중심이 될 대리점 주변으로 커서 이동" },
-        { "kind": "keyHold", "key": "Up", "maximumDurationMs": 1500, "anchor": "map-maximum-zoom-near-aftermarket", "timeoutMs": 5000, "label": "커서 위치를 중심으로 최대 확대될 때까지만 위쪽 방향키 유지" },
+        { "kind": "detect", "anchor": "player-arrow-overlapping-aftermarket-cluster", "timeoutMs": 10000, "label": "빠른 이동 지점과 차량 군집의 고정 겹침 상태 재확인" },
+        { "kind": "keyHold", "key": "Up", "maximumDurationMs": 1500, "anchor": "map-maximum-zoom-near-aftermarket", "timeoutMs": 5000, "label": "빠른 이동 때 남은 커서 위치를 중심으로 최대 확대될 때까지만 위쪽 방향키 유지" },
         { "kind": "detect", "anchor": "exactly-three-aftermarket-car-icons", "timeoutMs": 10000, "label": "초록색 차량 아이콘이 정확히 3개인지 확인" },
-        { "kind": "mouse", "target": "each-aftermarket-car-icon-center", "label": "세 아이콘을 하나씩 가리켜 정보 카드 표시" },
+        { "kind": "mouse", "target": "aftermarket-cluster-one-oclock-first", "label": "화살표를 피해 1시 방향부터 세 아이콘을 호버해 정보 카드 표시" },
         { "kind": "wait", "anchor": "aftermarket-car-card-readable", "timeoutMs": 10000, "label": "각 차량명 카드가 선명하게 표시되는지 확인" },
         { "kind": "detect", "anchor": "three-unique-aftermarket-cards-classified", "timeoutMs": 30000, "label": "중복 없이 차량 카드 3개를 모두 판독하고 목표 차량 대조" }
       ]

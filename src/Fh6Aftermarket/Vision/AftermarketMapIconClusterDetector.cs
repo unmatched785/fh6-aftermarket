@@ -5,7 +5,7 @@ namespace Fh6Aftermarket.Vision;
 public sealed record AftermarketMapIconCluster(
     Rectangle Bounds,
     int GreenPixelCount,
-    IReadOnlyList<Point> ClickTargets);
+    IReadOnlyList<Point> HoverTargets);
 
 public sealed record AftermarketMapIconClusterObservation(
     IReadOnlyList<AftermarketMapIconCluster> Candidates)
@@ -27,9 +27,9 @@ public static class AftermarketMapIconClusterDetector
             return new AftermarketMapIconClusterObservation([]);
         }
 
-        // The zoom step first places the cursor on the detected dealership area.
-        // Limiting the search to that normalized neighborhood prevents bright farm
-        // textures elsewhere on the map from being mistaken for sale icons.
+        // Fast travel leaves the dealership and its car icons under the player's
+        // fixed map position. Limiting the search to that normalized neighborhood
+        // prevents bright farm textures elsewhere from being mistaken for sale icons.
         var search = Scale(new Rectangle(600, 350, 400, 300), scaleX, scaleY);
         search = Rectangle.Intersect(search, new Rectangle(0, 0, source.Width, source.Height));
         var visited = new bool[source.Width * source.Height];
@@ -145,18 +145,22 @@ public static class AftermarketMapIconClusterDetector
             .Select(component => new AftermarketMapIconCluster(
                 component.Bounds,
                 component.GreenPixelCount,
-                CreateClickTargets(component.Bounds)))
+                CreateHoverTargets(component.Bounds)))
             .ToArray();
 
         return new AftermarketMapIconClusterObservation(candidates);
     }
 
-    private static IReadOnlyList<Point> CreateClickTargets(Rectangle bounds)
+    private static IReadOnlyList<Point> CreateHoverTargets(Rectangle bounds)
         =>
         [
-            RelativePoint(bounds, 0.52, 0.27),
+            // First try the 1-o'clock side of the overlap. It avoids the large
+            // player arrow while exposing the upper-right vehicle card by hover.
+            RelativePoint(bounds, 0.72, 0.38),
             RelativePoint(bounds, 0.23, 0.64),
-            RelativePoint(bounds, 0.53, 0.44)
+            // The third icon is the small exposed cap above the other two.
+            // Enter it from the top instead of lingering in the second layer.
+            RelativePoint(bounds, 0.55, 0.14)
         ];
 
     private static Point RelativePoint(Rectangle bounds, double xRatio, double yRatio)

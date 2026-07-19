@@ -271,7 +271,7 @@ static void PrintMapIconClusters(AftermarketMapIconClusterObservation observatio
             $"{candidate.Bounds.Width},{candidate.Bounds.Height}) " +
             $"green={candidate.GreenPixelCount}");
         Console.WriteLine(
-            $"      clicks: {string.Join(", ", candidate.ClickTargets.Select(point => $"({point.X},{point.Y})"))}");
+            $"      hovers: {string.Join(", ", candidate.HoverTargets.Select(point => $"({point.X},{point.Y})"))}");
     }
 }
 

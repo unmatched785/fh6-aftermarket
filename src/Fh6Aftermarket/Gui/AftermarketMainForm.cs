@@ -26,9 +26,6 @@ public sealed class AftermarketMainForm : Form
     private readonly TextBox _inputDelay = new();
     private readonly TextBox _transitionDelay = new();
     private readonly TextBox _fastTravelLoading = new();
-    private readonly TextBox _forwardDuration = new();
-    private readonly ComboBox _steeringKey = new();
-    private readonly TextBox _steeringDuration = new();
     private readonly TextBox _restartLoading = new();
     private readonly TextBox _postRestartFirstDelay = new();
     private readonly TextBox _postRestartSecondDelay = new();
@@ -269,13 +266,10 @@ public sealed class AftermarketMainForm : Form
         BuildTimingField(page, "입력 간격", _inputDelay, "ms", 10, 75);
         BuildTimingField(page, "화면 전환", _transitionDelay, "ms", 108, 75);
         BuildTimingField(page, "빠른 이동", _fastTravelLoading, "초", 206, 75);
-        BuildTimingField(page, "전진 시간", _forwardDuration, "초", 304, 75);
-        BuildSteeringKeyField(page, 402, 75);
-        BuildTimingField(page, "조향 시간", _steeringDuration, "ms", 10, 116);
-        BuildTimingField(page, "재시작 로딩", _restartLoading, "초", 108, 116);
-        BuildTimingField(page, "재시작 후 1/2", _postRestartFirstDelay, "초", 206, 116);
-        BuildTimingField(page, "재시작 후 2/2", _postRestartSecondDelay, "초", 304, 116);
-        BuildTimingField(page, "오픈월드→M", _openWorldMapDelay, "초", 402, 116);
+        BuildTimingField(page, "재시작 로딩", _restartLoading, "초", 304, 75);
+        BuildTimingField(page, "재시작 후 1/2", _postRestartFirstDelay, "초", 402, 75);
+        BuildTimingField(page, "재시작 후 2/2", _postRestartSecondDelay, "초", 10, 116);
+        BuildTimingField(page, "오픈월드→M", _openWorldMapDelay, "초", 108, 116);
     }
 
     private void BuildTimingField(
@@ -307,25 +301,6 @@ public sealed class AftermarketMainForm : Form
             FontStyle.Regular,
             Color.White,
             40);
-    }
-
-    private void BuildSteeringKeyField(Control page, int x, int y)
-    {
-        CreateShadowLabel(
-            page,
-            "조향 키",
-            x,
-            y,
-            8.5F,
-            FontStyle.Bold,
-            Color.White,
-            88);
-        _steeringKey.DropDownStyle = ComboBoxStyle.DropDownList;
-        _steeringKey.Items.AddRange(["D", "A", "사용 안 함"]);
-        _steeringKey.Size = new Size(Px(78), Px(22));
-        _steeringKey.Location = new Point(Px(x), Px(y + 19));
-        _steeringKey.Font = new Font(_baseFont, 8F, FontStyle.Regular);
-        page.Controls.Add(_steeringKey);
     }
 
     private void BuildLogPage(Control page)
@@ -606,10 +581,6 @@ public sealed class AftermarketMainForm : Form
             };
         }
 
-        _steeringKey.SelectionChangeCommitted += (_, _) =>
-        {
-            _ = TryApplyTimingSettings(showError: false);
-        };
     }
 
     private IEnumerable<TextBox> TimingTextBoxes()
@@ -617,8 +588,6 @@ public sealed class AftermarketMainForm : Form
         yield return _inputDelay;
         yield return _transitionDelay;
         yield return _fastTravelLoading;
-        yield return _forwardDuration;
-        yield return _steeringDuration;
         yield return _restartLoading;
         yield return _postRestartFirstDelay;
         yield return _postRestartSecondDelay;
@@ -631,9 +600,6 @@ public sealed class AftermarketMainForm : Form
         _inputDelay.Text = timing.InputDelayMilliseconds.ToString();
         _transitionDelay.Text = timing.TransitionDelayMilliseconds.ToString();
         _fastTravelLoading.Text = (timing.FastTravelLoadingMilliseconds / 1_000).ToString();
-        _forwardDuration.Text = (timing.ForwardDurationMilliseconds / 1_000).ToString();
-        _steeringKey.SelectedItem = timing.SteeringKey == "None" ? "사용 안 함" : timing.SteeringKey;
-        _steeringDuration.Text = timing.SteeringDurationMilliseconds.ToString();
         _restartLoading.Text = (timing.RestartLoadingMilliseconds / 1_000).ToString();
         _postRestartFirstDelay.Text = (timing.PostRestartFirstDelayMilliseconds / 1_000).ToString();
         _postRestartSecondDelay.Text = (timing.PostRestartSecondDelayMilliseconds / 1_000).ToString();
@@ -650,8 +616,6 @@ public sealed class AftermarketMainForm : Form
             TryRead(_inputDelay, 50, 5_000, out var inputDelay) &
             TryRead(_transitionDelay, 250, 15_000, out var transitionDelay) &
             TryRead(_fastTravelLoading, 0, 300, out var fastTravelLoading) &
-            TryRead(_forwardDuration, 1, 60, out var forwardDuration) &
-            TryRead(_steeringDuration, 0, 5_000, out var steeringDuration) &
             TryRead(_restartLoading, 0, 600, out var restartLoading) &
             TryRead(_postRestartFirstDelay, 0, 120, out var firstPostRestartDelay) &
             TryRead(_postRestartSecondDelay, 0, 120, out var secondPostRestartDelay) &
@@ -674,10 +638,6 @@ public sealed class AftermarketMainForm : Form
             InputDelayMilliseconds = inputDelay,
             TransitionDelayMilliseconds = transitionDelay,
             FastTravelLoadingMilliseconds = fastTravelLoading * 1_000,
-            ForwardDurationMilliseconds = forwardDuration * 1_000,
-            SteeringKey = _steeringKey.SelectedItem?.ToString() == "사용 안 함" ? "None" :
-                _steeringKey.SelectedItem?.ToString() ?? "D",
-            SteeringDurationMilliseconds = steeringDuration,
             RestartLoadingMilliseconds = restartLoading * 1_000,
             PostRestartFirstDelayMilliseconds = firstPostRestartDelay * 1_000,
             PostRestartSecondDelayMilliseconds = secondPostRestartDelay * 1_000,

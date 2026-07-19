@@ -10,12 +10,6 @@ public sealed record AutomationTimingSettings
 
     public int FastTravelLoadingMilliseconds { get; init; } = 15_000;
 
-    public int ForwardDurationMilliseconds { get; init; } = 5_000;
-
-    public string SteeringKey { get; init; } = "D";
-
-    public int SteeringDurationMilliseconds { get; init; } = 500;
-
     public int RestartLoadingMilliseconds { get; init; } = 60_000;
 
     public int PostRestartFirstDelayMilliseconds { get; init; } = 15_000;
@@ -40,9 +34,6 @@ public sealed record AutomationTimingSettings
 
     public int MapTransitionDelayMilliseconds => TransitionDelayMilliseconds;
 
-    public int PostMovementSettleMilliseconds =>
-        Math.Max(TransitionDelayMilliseconds / 2, 500);
-
     public int MapZoomDurationMilliseconds =>
         Math.Max(TransitionDelayMilliseconds, 800);
 
@@ -60,12 +51,6 @@ public sealed record AutomationTimingSettings
         ValidateMilliseconds(settings.InputDelayMilliseconds, 50, 5_000, nameof(InputDelayMilliseconds));
         ValidateMilliseconds(settings.TransitionDelayMilliseconds, 250, 15_000, nameof(TransitionDelayMilliseconds));
         ValidateMilliseconds(settings.FastTravelLoadingMilliseconds, 0, 300_000, nameof(FastTravelLoadingMilliseconds));
-        ValidateMilliseconds(settings.ForwardDurationMilliseconds, 1_000, 60_000, nameof(ForwardDurationMilliseconds));
-        if (settings.SteeringKey is not ("A" or "D" or "None"))
-        {
-            throw new ArgumentOutOfRangeException(nameof(SteeringKey), "A, D, None 중 하나여야 합니다.");
-        }
-        ValidateMilliseconds(settings.SteeringDurationMilliseconds, 0, 5_000, nameof(SteeringDurationMilliseconds));
         ValidateMilliseconds(settings.RestartLoadingMilliseconds, 0, 600_000, nameof(RestartLoadingMilliseconds));
         ValidateMilliseconds(
             settings.PostRestartFirstDelayMilliseconds,

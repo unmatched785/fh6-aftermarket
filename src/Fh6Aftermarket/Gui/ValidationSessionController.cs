@@ -162,8 +162,6 @@ public sealed class ValidationSessionController
             $"전환={timing.TransitionDelayMilliseconds}ms, " +
             $"F1대기={timing.StartDelayMilliseconds}ms, " +
             $"빠른이동={timing.FastTravelLoadingMilliseconds}ms, " +
-            $"전진={timing.ForwardDurationMilliseconds}ms(" +
-            $"조향={timing.SteeringKey}/{timing.SteeringDurationMilliseconds}ms), " +
             $"재시작={timing.RestartLoadingMilliseconds}ms, " +
             $"시작화면1={timing.PostRestartFirstDelayMilliseconds}ms, " +
             $"시작화면2={timing.PostRestartSecondDelayMilliseconds}ms, " +
@@ -222,7 +220,7 @@ public sealed class ValidationSessionController
     {
         try
         {
-            const int totalInputs = 50;
+            const int totalInputs = 49;
             var inputNumber = 2;
 
             Publish(
@@ -322,46 +320,9 @@ public sealed class ValidationSessionController
                 return;
             }
 
-            ThrowIfEmergencyStopIsDown();
-            using (var movementCapture = ForegroundWindowCapture.Capture())
-            {
-                ValidateLiveForeground(movementCapture);
-            }
-
-            Publish(
-                ValidationSessionState.Running,
-                "플레이어 위치 분리 중",
-                $"W {Timing.ForwardDurationMilliseconds}ms · " +
-                $"조향 {Timing.SteeringKey} {Timing.SteeringDurationMilliseconds}ms");
-            var forwardDuration = Timing.ForwardDurationMilliseconds;
-            var steeringKey = Timing.SteeringKey;
-            var steeringDuration = Timing.SteeringDurationMilliseconds;
-            if (!await DriveForwardWithSteeringAsync(
-                    generation,
-                    forwardDuration,
-                    steeringKey,
-                    steeringDuration))
-            {
-                return;
-            }
-
-            AddLog(
-                $"실전 입력 {inputNumber}/{totalInputs}: W hold {forwardDuration}ms + " +
-                $"{steeringKey} hold {steeringDuration}ms — 아이콘 군집에서 전진 분리");
-            inputNumber++;
-
-            if (!await DelayWithProgressAsync(
-                    generation,
-                    Timing.PostMovementSettleMilliseconds,
-                    "전진 완료",
-                    "화면 안정화 대기"))
-            {
-                return;
-            }
-
             var carFilterSteps = new List<(string Key, string Label, int DelayMs)>
             {
-                ("M", "전진한 오픈월드에서 전체 지도 바로 열기", Timing.GeneralKeyDelayMilliseconds),
+                ("M", "빠른 이동 도착점에서 전체 지도 바로 열기", Timing.GeneralKeyDelayMilliseconds),
                 ("PageDown", "지도 전환 대기 후 필터 열기", Timing.MapTransitionDelayMilliseconds),
                 ("Enter", "All 필터 전환 1/2", Timing.GeneralKeyDelayMilliseconds),
                 ("Enter", "All 필터 전환 2/2", Timing.GeneralKeyDelayMilliseconds)
@@ -439,11 +400,11 @@ public sealed class ValidationSessionController
             var cluster = clusters.Candidates[0];
             AddLog(
                 $"초록 차량 아이콘 군집 확인: bounds={cluster.Bounds}, " +
-                $"green={cluster.GreenPixelCount}, targets={cluster.ClickTargets.Count}");
+                $"green={cluster.GreenPixelCount}, targets={cluster.HoverTargets.Count}");
             Publish(
                 ValidationSessionState.Running,
                 "초록 차량 아이콘 군집 확인 완료",
-                "세 아이콘을 순서대로 클릭해 차량명을 판독합니다");
+                "1시 방향부터 세 아이콘을 호버해 차량명을 판독합니다");
 
             await ScanClusterVehiclesAsync(
                 generation,
@@ -588,73 +549,13 @@ public sealed class ValidationSessionController
         }
     }
 
-    private async Task<bool> DriveForwardWithSteeringAsync(
-        int generation,
-        int durationMilliseconds,
-        string steeringKey,
-        int steeringDurationMilliseconds)
-    {
-        var steeringEnabled = steeringKey != "None" && steeringDurationMilliseconds > 0;
-        var steeringDescription = steeringEnabled
-            ? $"{steeringKey} {steeringDurationMilliseconds}ms 조향"
-            : "조향 없음";
-        var phase = new ActivePhase(
-            "플레이어 위치 분리 중",
-            $"W 전진 · {steeringDescription}",
-            DateTimeOffset.UtcNow.AddMilliseconds(durationMilliseconds));
-        Volatile.Write(ref _activePhase, phase);
-
-        var steeringIsDown = false;
-        _keySender.KeyDown("W");
-        try
-        {
-            if (steeringEnabled)
-            {
-                _keySender.KeyDown(steeringKey);
-                steeringIsDown = true;
-            }
-            var elapsed = 0;
-            while (elapsed < durationMilliseconds)
-            {
-                var delay = Math.Min(100, durationMilliseconds - elapsed);
-                await Task.Delay(delay);
-                elapsed += delay;
-
-                if (steeringIsDown && elapsed >= steeringDurationMilliseconds)
-                {
-                    _keySender.KeyUp(steeringKey);
-                    steeringIsDown = false;
-                }
-
-                if (!IsLiveGenerationActive(generation))
-                {
-                    return false;
-                }
-
-                ThrowIfEmergencyStopIsDown();
-            }
-
-            return true;
-        }
-        finally
-        {
-            if (steeringIsDown)
-            {
-                _keySender.KeyUp(steeringKey);
-            }
-
-            _keySender.KeyUp("W");
-            Interlocked.CompareExchange(ref _activePhase, null, phase);
-        }
-    }
-
     private async Task ScanClusterVehiclesAsync(
         int generation,
         int screenX,
         int screenY,
         AftermarketMapIconCluster cluster)
     {
-        var targets = CreateVehicleClickScan(cluster);
+        var targets = CreateVehicleHoverScan(cluster);
         for (var index = 0; index < targets.Count; index++)
         {
             if (!IsLiveGenerationActive(generation) ||
@@ -675,19 +576,12 @@ public sealed class ValidationSessionController
                 return;
             }
 
-            using (var clickCapture = ForegroundWindowCapture.Capture())
-            {
-                ValidateLiveForeground(clickCapture);
-            }
-
-            ThrowIfEmergencyStopIsDown();
-            _mouseSender.ClickLeft();
             AddLog(
-                $"차량 아이콘 클릭 {index + 1}/{targets.Count}: " +
+                $"차량 아이콘 호버 {index + 1}/{targets.Count}: " +
                 $"({target.X},{target.Y})");
             Publish(
                 ValidationSessionState.Running,
-                $"차량 아이콘 클릭 {index + 1}/{targets.Count}",
+                $"차량 아이콘 호버 {index + 1}/{targets.Count}",
                 "지도 카드가 나타나면 차량명을 OCR합니다");
 
             await Task.Delay(Timing.VehicleCardSettleMilliseconds);
@@ -726,7 +620,7 @@ public sealed class ValidationSessionController
             else
             {
                 AddLog(
-                    $"클릭 지점 ({target.X},{target.Y})에서 읽을 수 있는 차량 카드 없음 — " +
+                    $"호버 지점 ({target.X},{target.Y})에서 읽을 수 있는 차량 카드 없음 — " +
                     "다음 지점 계속");
             }
         }
@@ -734,16 +628,16 @@ public sealed class ValidationSessionController
         Publish(
             ValidationSessionState.Running,
             $"자동 판독 {_vehicles.Count}/3",
-            "중복 또는 가려짐이 남았습니다 — 지도에서 수동 클릭하면 계속 판독합니다");
+            "중복 또는 가려짐이 남았습니다 — 지도에서 수동 호버하면 계속 판독합니다");
     }
 
-    private static IReadOnlyList<Point> CreateVehicleClickScan(
+    private static IReadOnlyList<Point> CreateVehicleHoverScan(
         AftermarketMapIconCluster cluster)
     {
-        var targets = new List<Point>(cluster.ClickTargets);
+        var targets = new List<Point>(cluster.HoverTargets);
         var offset = Math.Max(3, (int)Math.Round(cluster.Bounds.Width * 0.08));
 
-        foreach (var target in cluster.ClickTargets)
+        foreach (var target in cluster.HoverTargets)
         {
             targets.Add(new Point(
                 Math.Clamp(target.X - offset, cluster.Bounds.Left, cluster.Bounds.Right - 1),
