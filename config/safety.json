@@ -1,5 +1,6 @@
 {
   "automationEnabled": false,
+  "practicalStartEnabled": true,
   "supportedLanguages": [
     "kor",
     "eng"
@@ -14,7 +15,7 @@
   "requiredWindowTitle": "Forza Horizon 6",
   "inputDelayMilliseconds": 750,
   "maxKeysPerOneShot": 32,
-  "maxCycles": 3,
+  "maxCycles": 1,
   "maxRuntimeMinutes": 15,
   "maxRecognitionRetriesPerPoint": 3,
   "maxDuplicateRetriesPerPoint": 2,

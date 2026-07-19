@@ -8,6 +8,9 @@ public sealed record SafetySettings
     [JsonPropertyName("automationEnabled")]
     public bool AutomationEnabled { get; init; }
 
+    [JsonPropertyName("practicalStartEnabled")]
+    public bool PracticalStartEnabled { get; init; }
+
     [JsonPropertyName("supportedLanguages")]
     public IReadOnlyList<string> SupportedLanguages { get; init; } = [];
 

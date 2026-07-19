@@ -116,7 +116,7 @@ public sealed class AftermarketMainForm : Form
             ForeColor = Color.White,
             Location = new Point(0, 4)
         };
-        _modeLabel.Text = "검증 모드 · 게임 입력 없음 · F1 시작 / F2 중지";
+        _modeLabel.Text = "실전 1회 · 영어 오픈월드 시작 · F1 실행 / F2 중지";
         _modeLabel.AutoSize = false;
         _modeLabel.Size = new Size(980, 30);
         _modeLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -154,7 +154,7 @@ public sealed class AftermarketMainForm : Form
         controlsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         controlsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         controlsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        ConfigureButton(_startButton, "시작 / 재개  F1", Color.FromArgb(20, 145, 92));
+        ConfigureButton(_startButton, "실전 1회 시작  F1", Color.FromArgb(20, 145, 92));
         ConfigureButton(_pauseButton, "일시정지", Color.FromArgb(190, 125, 25));
         ConfigureButton(_stopButton, "중지  F2", Color.FromArgb(188, 58, 65));
         _startButton.Click += (_, _) => _controller.StartOrResume();
@@ -228,7 +228,9 @@ public sealed class AftermarketMainForm : Form
         _stopButton.Enabled = snapshot.State != ValidationSessionState.Stopped;
         _startButton.Text = snapshot.State is ValidationSessionState.Paused or ValidationSessionState.NeedsAttention
             ? "재개  F1"
-            : "시작 / 새 검증  F1";
+            : snapshot.PracticalInputEnabled
+                ? "오픈월드 실전 시작  F1"
+                : "시작 / 새 검증  F1";
 
         _vehicleGrid.Rows.Clear();
         for (var index = 0; index < snapshot.Vehicles.Count; index++)
@@ -249,8 +251,8 @@ public sealed class AftermarketMainForm : Form
             _renderedLogCount = snapshot.LogLines.Count;
         }
 
-        _modeLabel.Text = snapshot.AutomationEnabled
-            ? "검증 GUI · 실제 입력 루프는 아직 연결되지 않음 · F1 시작 / F2 중지"
+        _modeLabel.Text = snapshot.PracticalInputEnabled
+            ? "실전 1회 · 영어 오픈월드 정차 상태에서 시작 · F1 실행 / F2 중지"
             : "검증 모드 · 게임 입력 없음 · F1 시작 / F2 중지";
     }
 

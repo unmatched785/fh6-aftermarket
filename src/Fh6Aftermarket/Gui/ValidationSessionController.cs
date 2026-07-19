@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Fh6Aftermarket.Capture;
 using Fh6Aftermarket.Domain;
+using Fh6Aftermarket.Input;
 using Fh6Aftermarket.Ocr;
 using Fh6Aftermarket.Safety;
 using Fh6Aftermarket.Vision;
@@ -32,12 +33,13 @@ public sealed record ValidationSessionSnapshot(
     int DuplicateObservations,
     IReadOnlyList<VehicleObservation> Vehicles,
     IReadOnlyList<string> LogLines,
-    bool AutomationEnabled);
+    bool PracticalInputEnabled);
 
 public sealed class ValidationSessionController
 {
     private readonly SafetySettings _safety;
     private readonly AftermarketMapCardAnalyzer _cardAnalyzer;
+    private readonly IKeySender _keySender;
     private readonly Stopwatch _stopwatch = new();
     private readonly List<VehicleObservation> _vehicles = [];
     private readonly List<string> _logLines = [];
@@ -54,11 +56,13 @@ public sealed class ValidationSessionController
     public ValidationSessionController(
         SafetySettings safety,
         AftermarketMapCardAnalyzer cardAnalyzer,
-        string logDirectory)
+        string logDirectory,
+        IKeySender? keySender = null)
     {
         _safety = safety;
         _cardAnalyzer = cardAnalyzer;
         _logDirectory = logDirectory;
+        _keySender = keySender ?? new WindowsKeySender();
         Snapshot = CreateSnapshot(
             ValidationSessionState.Stopped,
             "준비됨 — 검증 모드",
@@ -73,6 +77,15 @@ public sealed class ValidationSessionController
     {
         if (Snapshot.State == ValidationSessionState.Running)
         {
+            return;
+        }
+
+        if (_safety.PracticalStartEnabled &&
+            Snapshot.State is ValidationSessionState.Stopped or
+                ValidationSessionState.CycleComplete or
+                ValidationSessionState.TargetFound)
+        {
+            StartLiveFromOpenWorld();
             return;
         }
 
@@ -104,6 +117,122 @@ public sealed class ValidationSessionController
             ValidationSessionState.Running,
             "FH6 화면 대기 중",
             "게임을 전경에 두고 지도 카드를 수동으로 선택하세요");
+    }
+
+    private void StartLiveFromOpenWorld()
+    {
+        ResetCycle();
+        Directory.CreateDirectory(_logDirectory);
+        _logPath = Path.Combine(
+            _logDirectory,
+            $"session-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        _stopwatch.Restart();
+        var generation = Interlocked.Increment(ref _observationGeneration);
+        AddLog("실전 1회 시작: 영어 오픈월드 정차 상태에서 시작합니다.");
+        Publish(
+            ValidationSessionState.Running,
+            "오픈월드 시작 조건 확인 중",
+            "FH6 전경과 16:9 화면을 확인합니다");
+
+        try
+        {
+            using var capture = ForegroundWindowCapture.Capture();
+            ValidateLiveForeground(capture);
+            ThrowIfEmergencyStopIsDown();
+
+            _keySender.Send("Escape");
+            AddLog(
+                $"실전 입력 1/2: Escape — 일시정지 메뉴 열기 " +
+                $"(screen={capture.Image.Width}x{capture.Image.Height})");
+            Publish(
+                ValidationSessionState.Running,
+                "일시정지 메뉴 열기 입력 완료",
+                "잠시 뒤 Enter로 전체 지도를 엽니다 · 언제든 F2 중지");
+            _ = CompleteOpenWorldMapEntryAsync(generation);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            AddLog($"실전 시작 거부: {exception.Message}");
+            _stopwatch.Stop();
+            Publish(
+                ValidationSessionState.NeedsAttention,
+                "실전 시작 거부 — 입력 없음",
+                exception.Message);
+        }
+        catch (OperationCanceledException exception)
+        {
+            AddLog($"실전 시작 취소: {exception.Message}");
+            _stopwatch.Stop();
+            Publish(
+                ValidationSessionState.Stopped,
+                "중지됨",
+                exception.Message);
+        }
+    }
+
+    private async Task CompleteOpenWorldMapEntryAsync(int generation)
+    {
+        try
+        {
+            await Task.Delay(_safety.InputDelayMilliseconds);
+            if (Snapshot.State != ValidationSessionState.Running ||
+                generation != Volatile.Read(ref _observationGeneration))
+            {
+                return;
+            }
+
+            ThrowIfEmergencyStopIsDown();
+            using var capture = ForegroundWindowCapture.Capture();
+            ValidateLiveForeground(capture);
+
+            _keySender.Send("Enter");
+            AddLog("실전 입력 2/2: Enter — 전체 지도 열기");
+            Publish(
+                ValidationSessionState.Running,
+                "전체 지도 열기 완료 — 지도 관찰 중",
+                "이제 후속 입력 없이 결과를 기다립니다 · 언제든 F2 중지");
+        }
+        catch (OperationCanceledException exception)
+        {
+            Stop(exception.Message);
+        }
+        catch (Exception exception)
+        {
+            AddLog($"전체 지도 진입 중단: {exception.Message}");
+            _stopwatch.Stop();
+            Publish(
+                ValidationSessionState.NeedsAttention,
+                "전체 지도 진입 중단",
+                exception.Message);
+        }
+    }
+
+    private void ValidateLiveForeground(CapturedWindow capture)
+    {
+        if (!string.Equals(capture.Title, _safety.RequiredWindowTitle, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"FH6가 전경이 아닙니다: {(capture.Title.Length == 0 ? "제목 없음" : capture.Title)}");
+        }
+
+        if (!ScreenGeometry.TryCreate(
+                capture.Image.Width,
+                capture.Image.Height,
+                out _,
+                _safety.AspectRatioTolerance))
+        {
+            throw new InvalidOperationException(
+                $"지원하지 않는 화면 크기: {capture.Image.Width}×{capture.Image.Height}");
+        }
+    }
+
+    private void ThrowIfEmergencyStopIsDown()
+    {
+        if (_keySender.IsDown(_safety.EmergencyStopKey))
+        {
+            throw new OperationCanceledException(
+                $"{_safety.EmergencyStopKey}가 눌린 상태라 다음 입력을 보내지 않았습니다.");
+        }
     }
 
     public void Pause()
@@ -397,7 +526,7 @@ public sealed class ValidationSessionController
             _duplicateObservations,
             _vehicles.ToArray(),
             _logLines.ToArray(),
-            _safety.AutomationEnabled);
+            _safety.PracticalStartEnabled);
 
     private enum ForegroundObservationKind
     {

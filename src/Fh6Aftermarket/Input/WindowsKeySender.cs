@@ -1,12 +1,11 @@
-using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace Fh6Aftermarket.Input;
 
 public sealed class WindowsKeySender : IKeySender
 {
-    private const uint InputKeyboard = 1;
-    private const uint KeyUp = 0x0002;
+    private const uint KeyEventKeyUp = 0x0002;
+    private const int KeyHoldMilliseconds = 55;
 
     private static readonly IReadOnlyDictionary<string, ushort> VirtualKeys =
         new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
@@ -17,6 +16,8 @@ public sealed class WindowsKeySender : IKeySender
             ["Down"] = 0x28,
             ["Left"] = 0x25,
             ["Right"] = 0x27,
+            ["PageDown"] = 0x22,
+            ["X"] = 0x58,
             ["F1"] = 0x70,
             ["F2"] = 0x71
         };
@@ -24,16 +25,15 @@ public sealed class WindowsKeySender : IKeySender
     public void Send(string key)
     {
         var virtualKey = Resolve(key);
-        var inputs = new[]
+        var scanCode = (byte)MapVirtualKey(virtualKey, 0);
+        keybd_event((byte)virtualKey, scanCode, 0, UIntPtr.Zero);
+        try
         {
-            CreateInput(virtualKey, 0),
-            CreateInput(virtualKey, KeyUp)
-        };
-
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeInput>());
-        if (sent != inputs.Length)
+            Thread.Sleep(KeyHoldMilliseconds);
+        }
+        finally
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not send key: {key}");
+            keybd_event((byte)virtualKey, scanCode, KeyEventKeyUp, UIntPtr.Zero);
         }
     }
 
@@ -50,52 +50,17 @@ public sealed class WindowsKeySender : IKeySender
             : throw new InvalidOperationException($"Unsupported key: {key}");
     }
 
-    private static NativeInput CreateInput(ushort virtualKey, uint flags)
-    {
-        return new NativeInput
-        {
-            Type = InputKeyboard,
-            Data = new InputUnion
-            {
-                Keyboard = new KeyboardInput
-                {
-                    VirtualKey = virtualKey,
-                    Flags = flags
-                }
-            }
-        };
-    }
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint code, uint mapType);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(
-        uint inputCount,
-        [In] NativeInput[] inputs,
-        int inputSize);
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(
+        byte virtualKey,
+        byte scanCode,
+        uint flags,
+        UIntPtr extraInfo);
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int virtualKey);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeInput
-    {
-        public uint Type;
-        public InputUnion Data;
-    }
-
-    [StructLayout(LayoutKind.Explicit)]
-    private struct InputUnion
-    {
-        [FieldOffset(0)]
-        public KeyboardInput Keyboard;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KeyboardInput
-    {
-        public ushort VirtualKey;
-        public ushort ScanCode;
-        public uint Flags;
-        public uint Time;
-        public UIntPtr ExtraInfo;
-    }
 }

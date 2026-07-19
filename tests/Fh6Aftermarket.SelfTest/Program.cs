@@ -54,9 +54,11 @@ var safetyPath = Path.Combine(repoRoot, "config", "safety.json");
 var safetyJson = File.ReadAllText(safetyPath);
 var safetySettings = SafetySettingsLoader.Load(safetyPath);
 
-if (!safetyJson.Contains("\"automationEnabled\": false", StringComparison.Ordinal))
+if (!safetyJson.Contains("\"automationEnabled\": false", StringComparison.Ordinal) ||
+    !safetyJson.Contains("\"practicalStartEnabled\": true", StringComparison.Ordinal))
 {
-    failures.Add("Automation must be disabled in the initial safety config.");
+    failures.Add(
+        "The practical build must enable only the open-world start while keeping full automation locked.");
 }
 
 if (safetySettings.OnUncertainRecognition != "retry_then_pause" ||
@@ -82,7 +84,7 @@ Console.WriteLine("SELF-TEST PASSED");
 Console.WriteLine("- FHD/QHD/4K normalization");
 Console.WriteLine("- ultrawide rejection");
 Console.WriteLine("- five workflow definitions, including guarded map-card inspection");
-Console.WriteLine("- automation disabled by default");
+Console.WriteLine("- open-world practical start enabled while full automation stays locked");
 Console.WriteLine("- duplicate/OCR/focus failures retry or pause instead of hard-stop");
 Console.WriteLine("- synthetic marker and selected-card detection");
 Console.WriteLine("- synthetic selling-banner detection");
