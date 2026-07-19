@@ -13,7 +13,7 @@
   "startKey": "F1",
   "emergencyStopKey": "F2",
   "requiredWindowTitle": "Forza Horizon 6",
-  "inputDelayMilliseconds": 750,
+  "inputDelayMilliseconds": 850,
   "maxKeysPerOneShot": 32,
   "maxCycles": 1,
   "maxRuntimeMinutes": 15,

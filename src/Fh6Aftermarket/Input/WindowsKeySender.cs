@@ -17,25 +17,39 @@ public sealed class WindowsKeySender : IKeySender
             ["Left"] = 0x25,
             ["Right"] = 0x27,
             ["PageDown"] = 0x22,
+            ["A"] = 0x41,
+            ["D"] = 0x44,
+            ["M"] = 0x4D,
+            ["W"] = 0x57,
             ["X"] = 0x58,
             ["F1"] = 0x70,
             ["F2"] = 0x71
         };
 
     public void Send(string key)
+        => Hold(key, KeyHoldMilliseconds);
+
+    public void Hold(string key, int milliseconds)
     {
-        var virtualKey = Resolve(key);
-        var scanCode = (byte)MapVirtualKey(virtualKey, 0);
-        keybd_event((byte)virtualKey, scanCode, 0, UIntPtr.Zero);
+        if (milliseconds is < 1 or > 30_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(milliseconds));
+        }
+
+        KeyDown(key);
         try
         {
-            Thread.Sleep(KeyHoldMilliseconds);
+            Thread.Sleep(milliseconds);
         }
         finally
         {
-            keybd_event((byte)virtualKey, scanCode, KeyEventKeyUp, UIntPtr.Zero);
+            KeyUp(key);
         }
     }
+
+    public void KeyDown(string key) => SendKeyEvent(key, 0);
+
+    public void KeyUp(string key) => SendKeyEvent(key, KeyEventKeyUp);
 
     public bool IsDown(string key)
     {
@@ -48,6 +62,13 @@ public sealed class WindowsKeySender : IKeySender
         return VirtualKeys.TryGetValue(key, out var virtualKey)
             ? virtualKey
             : throw new InvalidOperationException($"Unsupported key: {key}");
+    }
+
+    private static void SendKeyEvent(string key, uint flags)
+    {
+        var virtualKey = Resolve(key);
+        var scanCode = (byte)MapVirtualKey(virtualKey, 0);
+        keybd_event((byte)virtualKey, scanCode, flags, UIntPtr.Zero);
     }
 
     [DllImport("user32.dll")]

@@ -10,5 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Fh6Aftermarket\Fh6Aftermarket.csproj" />
+    <EmbeddedResource Include="Assets\aftermarket.bg.png"
+                      LogicalName="Fh6Aftermarket.Gui.aftermarket.bg.png" />
   </ItemGroup>
 </Project>

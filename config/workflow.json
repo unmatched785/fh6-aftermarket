@@ -31,9 +31,10 @@
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "Open Settings" },
         { "kind": "key", "key": "Up", "repeat": 2, "label": "Move to Language Select" },
         { "kind": "key", "key": "Enter", "repeat": 1, "label": "Open language list" },
-        { "kind": "key", "key": "Up", "repeat": 4, "label": "Move toward Korean" },
-        { "kind": "key", "key": "Down", "repeat": 1, "label": "Select restart confirmation" },
-        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Change language and restart" }
+        { "kind": "key", "key": "Up", "repeat": 4, "label": "Move from English US to explicit Korean" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Select Korean" },
+        { "kind": "key", "key": "Down", "repeat": 1, "label": "Select Yes on restart confirmation" },
+        { "kind": "key", "key": "Enter", "repeat": 1, "label": "Confirm language change and restart" }
       ]
     },
     {

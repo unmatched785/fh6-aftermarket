@@ -7,6 +7,7 @@ using Fh6Aftermarket.Vision;
 using Fh6Aftermarket.Watch;
 using Fh6Aftermarket.Workflow;
 using Fh6Aftermarket.Capture;
+using Fh6Aftermarket.Gui;
 
 var failures = new List<string>();
 
@@ -20,10 +21,13 @@ if (ScreenGeometry.TryCreate(3440, 1440, out _))
 }
 
 CheckSyntheticMarker();
+CheckSyntheticMovedMarker();
 CheckSyntheticSelectedCard();
 CheckSyntheticSellingBanner();
 CheckSyntheticMapCard();
 CheckSyntheticMapIconCluster();
+CheckPauseMenuLanguageClassifier();
+CheckGroupedTimingSettings();
 CheckOcrReadabilityGuard();
 CheckReadOnlyWatcherTitleGuard();
 CheckReadOnlyWatcherTargetStop();
@@ -33,7 +37,7 @@ var workflowPath = Path.Combine(repoRoot, "config", "workflow.json");
 var workflow = WorkflowLoader.Load(workflowPath);
 
 CheckFlow(workflow, "kor-to-eng", expectedStepCount: 10, expectedAutomationReady: true);
-CheckFlow(workflow, "eng-to-kor", expectedStepCount: 9, expectedAutomationReady: false);
+CheckFlow(workflow, "eng-to-kor", expectedStepCount: 10, expectedAutomationReady: false);
 CheckFlow(workflow, "post-restart-to-filtered-map", expectedStepCount: 19, expectedAutomationReady: false);
 CheckFlow(workflow, "open-aftermarket-location", expectedStepCount: 8, expectedAutomationReady: false);
 CheckFlow(workflow, "inspect-aftermarket-cars-on-map", expectedStepCount: 19, expectedAutomationReady: false);
@@ -115,10 +119,7 @@ void CheckSyntheticMarker()
     using (var graphics = Graphics.FromImage(bitmap))
     {
         graphics.Clear(Color.FromArgb(35, 70, 45));
-        using var purple = new SolidBrush(Color.FromArgb(116, 52, 190));
-        using var white = new SolidBrush(Color.White);
-        graphics.FillEllipse(purple, 325, 252, 60, 60);
-        graphics.FillEllipse(white, 342, 269, 26, 26);
+        DrawSyntheticGlobe(graphics, 329, 256);
     }
 
     var observation = AftermarketScreenObserver.Observe(bitmap);
@@ -130,16 +131,43 @@ void CheckSyntheticMarker()
     }
 }
 
+void CheckSyntheticMovedMarker()
+{
+    using var bitmap = new Bitmap(1920, 1080);
+    using (var graphics = Graphics.FromImage(bitmap))
+    {
+        graphics.Clear(Color.FromArgb(35, 70, 45));
+        DrawSyntheticGlobe(graphics, 55, 616);
+
+        using var white = new SolidBrush(Color.White);
+        graphics.FillPolygon(white,
+        [
+            new Point(932, 515),
+            new Point(983, 535),
+            new Point(950, 556)
+        ]);
+    }
+
+    var observation = AftermarketScreenObserver.Observe(bitmap);
+    if (observation.Candidates.Count != 1 ||
+        observation.State != MarkerVisualState.Clear ||
+        Math.Abs(observation.Candidates[0].Center.X - 81) > 3 ||
+        Math.Abs(observation.Candidates[0].Center.Y - 642) > 3)
+    {
+        failures.Add(
+            $"Moved color-independent marker expected near (81,642), got " +
+            $"{observation.Candidates.FirstOrDefault()?.Center} / {observation.State}.");
+    }
+}
+
 void CheckSyntheticSelectedCard()
 {
     using var bitmap = new Bitmap(1920, 1080);
     using (var graphics = Graphics.FromImage(bitmap))
     {
         graphics.Clear(Color.FromArgb(35, 70, 45));
-        using var purple = new SolidBrush(Color.FromArgb(116, 52, 190));
         using var white = new SolidBrush(Color.White);
-        graphics.FillEllipse(purple, 325, 252, 60, 60);
-        graphics.FillEllipse(white, 342, 269, 26, 26);
+        DrawSyntheticGlobe(graphics, 329, 256);
         graphics.FillRectangle(white, 440, 145, 400, 180);
     }
 
@@ -150,6 +178,17 @@ void CheckSyntheticSelectedCard()
             $"Synthetic selected card expected one selected candidate, got " +
             $"{observation.Candidates.Count} / {observation.State}.");
     }
+}
+
+void DrawSyntheticGlobe(Graphics graphics, int x, int y)
+{
+    using var fill = new SolidBrush(Color.FromArgb(75, 75, 75));
+    using var line = new Pen(Color.White, 4);
+    graphics.FillEllipse(fill, x, y, 52, 52);
+    graphics.DrawEllipse(line, x, y, 52, 52);
+    graphics.DrawEllipse(line, x + 14, y, 24, 52);
+    graphics.DrawLine(line, x + 2, y + 18, x + 50, y + 18);
+    graphics.DrawLine(line, x + 2, y + 34, x + 50, y + 34);
 }
 
 void CheckSyntheticSellingBanner()
@@ -264,6 +303,106 @@ void CheckSyntheticMapIconCluster()
         observation.Candidates[0].ClickTargets.Distinct().Count() != 3)
     {
         failures.Add("Synthetic map icon cluster must provide three distinct click targets.");
+    }
+}
+
+void CheckPauseMenuLanguageClassifier()
+{
+    var english = PauseMenuLanguageDetector.Classify(
+        "CAMPAIGN CARS MY HORIZON World Map Festival Playlist Settings Exit Game");
+    if (english.Language != GameLanguage.English)
+    {
+        failures.Add(
+            $"English pause menu expected English, got {english.Language} " +
+            $"({english.EnglishScore}/{english.KoreanScore}).");
+    }
+
+    var korean = PauseMenuLanguageDetector.Classify(
+        "캠페인 차량 나의 호라이즌 월드 맵 페스티벌 플레이리스트 설정 게임 종료");
+    if (korean.Language != GameLanguage.Korean)
+    {
+        failures.Add(
+            $"Korean pause menu expected Korean, got {korean.Language} " +
+            $"({korean.EnglishScore}/{korean.KoreanScore}).");
+    }
+
+    var singleKoreanSignal = PauseMenuLanguageDetector.Classify("캠페인");
+    if (singleKoreanSignal.Language != GameLanguage.Korean)
+    {
+        failures.Add("One unambiguous Korean menu signal must determine Korean.");
+    }
+
+    var singleEnglishSignal = PauseMenuLanguageDetector.Classify("CAMPAIGN");
+    if (singleEnglishSignal.Language != GameLanguage.English)
+    {
+        failures.Add("One unambiguous English menu signal must determine English.");
+    }
+
+    var koreanScriptFallback = PauseMenuLanguageDetector.Classify("한글 문구가 여러 개 보임");
+    if (koreanScriptFallback.Language != GameLanguage.Korean)
+    {
+        failures.Add("Hangul-dominant OCR must fall back to Korean.");
+    }
+}
+
+void CheckGroupedTimingSettings()
+{
+    var timing = new AutomationTimingSettings
+    {
+        InputDelayMilliseconds = 500,
+        TransitionDelayMilliseconds = 1_800,
+        FastTravelLoadingMilliseconds = 8_000,
+        ForwardDurationMilliseconds = 12_000,
+        SteeringKey = "A",
+        SteeringDurationMilliseconds = 350,
+        RestartLoadingMilliseconds = 40_000,
+        PostRestartFirstDelayMilliseconds = 15_000,
+        PostRestartSecondDelayMilliseconds = 25_000,
+        OpenWorldMapDelayMilliseconds = 9_000
+    };
+
+    AutomationTimingSettings.Validate(timing);
+    if (timing.RepeatedKeyDelayMilliseconds != 50 ||
+        timing.StartDelayMilliseconds != 1_800 ||
+        timing.PointerSettleMilliseconds != 250 ||
+        timing.PauseMenuSettleMilliseconds != 600 ||
+        timing.MapZoomDurationMilliseconds != 1_800 ||
+        timing.OpenWorldMapDelayMilliseconds != 9_000 ||
+        timing.VehicleCardSettleMilliseconds != 600 ||
+        timing.PostRestartFirstDelayMilliseconds != 15_000 ||
+        timing.PostRestartSecondDelayMilliseconds != 25_000)
+    {
+        failures.Add("Grouped GUI timing values must derive uniform bounded delays.");
+    }
+
+    var defaults = new AutomationTimingSettings();
+    if (defaults.InputDelayMilliseconds != 850 ||
+        defaults.TransitionDelayMilliseconds != 2_500 ||
+        defaults.FastTravelLoadingMilliseconds != 15_000 ||
+        defaults.ForwardDurationMilliseconds != 5_000 ||
+        defaults.SteeringKey != "D" ||
+        defaults.SteeringDurationMilliseconds != 500 ||
+        defaults.RestartLoadingMilliseconds != 60_000 ||
+        defaults.PostRestartFirstDelayMilliseconds != 15_000 ||
+        defaults.PostRestartSecondDelayMilliseconds != 30_000 ||
+        defaults.OpenWorldMapDelayMilliseconds != 10_000)
+    {
+        failures.Add("Default GUI timing profile must stay on the conservative baseline.");
+    }
+
+    var slowerMachine = new AutomationTimingSettings
+    {
+        InputDelayMilliseconds = 2_000,
+        TransitionDelayMilliseconds = 6_000
+    };
+    if (slowerMachine.PointerSettleMilliseconds != 1_000 ||
+        slowerMachine.StartDelayMilliseconds != 2_000 ||
+        slowerMachine.PauseMenuSettleMilliseconds != 2_000 ||
+        slowerMachine.PostMovementSettleMilliseconds != 3_000 ||
+        slowerMachine.MapZoomDurationMilliseconds != 6_000 ||
+        slowerMachine.VehicleCardSettleMilliseconds != 2_000)
+    {
+        failures.Add("Higher GUI timing values must not be truncated by hidden upper caps.");
     }
 }
 
@@ -479,6 +618,12 @@ sealed class RecordingKeySender : IKeySender
     public bool EmergencyStopPressed { get; set; }
 
     public void Send(string key) => Keys.Add(key);
+
+    public void Hold(string key, int milliseconds) => Keys.Add(key);
+
+    public void KeyDown(string key) => Keys.Add($"{key}:down");
+
+    public void KeyUp(string key) => Keys.Add($"{key}:up");
 
     public bool IsDown(string key) => EmergencyStopPressed;
 }

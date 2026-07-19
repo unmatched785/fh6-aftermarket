@@ -5,7 +5,11 @@ using System.Text;
 
 namespace Fh6Aftermarket.Capture;
 
-public sealed record CapturedWindow(string Title, Bitmap Image) : IDisposable
+public sealed record CapturedWindow(
+    string Title,
+    Bitmap Image,
+    int ScreenX = 0,
+    int ScreenY = 0) : IDisposable
 {
     public void Dispose() => Image.Dispose();
 }
@@ -55,7 +59,7 @@ public static class ForegroundWindowCapture
                 CopyPixelOperation.SourceCopy);
         }
 
-        return new CapturedWindow(ReadWindowTitle(window), bitmap);
+        return new CapturedWindow(ReadWindowTitle(window), bitmap, origin.X, origin.Y);
     }
 
     private static string ReadWindowTitle(IntPtr window)

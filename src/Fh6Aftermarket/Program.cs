@@ -22,6 +22,24 @@ if (args.Length == 2 && args[0] == "--inspect-image")
     return;
 }
 
+if (args.Length == 2 && args[0] == "--detect-pause-language")
+{
+    using var image = new Bitmap(args[1]);
+    var detector = new PauseMenuLanguageDetector(
+        new TesseractCliRecognizer(
+            "tesseract",
+            GetDefaultTessdataPath(),
+            "eng+kor",
+            [11],
+            preparationScale: 1,
+            maximumPreparedWidth: 1600));
+    var detection = detector.Detect(image);
+    Console.WriteLine($"Pause menu language: {detection.Language?.ToString() ?? "Unknown"}");
+    Console.WriteLine($"Scores: eng={detection.EnglishScore}, kor={detection.KoreanScore}");
+    Console.WriteLine($"OCR: {detection.RecognizedText}");
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--inspect-map-icons")
 {
     using var image = new Bitmap(args[1]);
@@ -181,6 +199,7 @@ Console.WriteLine("FH6 Aftermarket Watcher - observer mode (input disabled)");
 Console.WriteLine("Usage:");
 Console.WriteLine("  --gui");
 Console.WriteLine("  --inspect-image <image-path>");
+Console.WriteLine("  --detect-pause-language <image-path>");
 Console.WriteLine("  --inspect-map-icons <image-path>");
 Console.WriteLine("  --capture-foreground <output.png>");
 Console.WriteLine("  --targets <targets.json> --match-text <recognized-text>");
@@ -235,8 +254,9 @@ static void PrintObservation(ScreenObservation observation)
             $"  #{index + 1}: center=({candidate.Center.X},{candidate.Center.Y}) " +
             $"bounds=({candidate.Bounds.X},{candidate.Bounds.Y}," +
             $"{candidate.Bounds.Width},{candidate.Bounds.Height}) " +
-            $"purple={candidate.PurplePixelCount} " +
-            $"sat={candidate.MeanSaturation:F3} value={candidate.MeanValue:F3}");
+            $"bright={candidate.BrightPixelCount} " +
+            $"fill={candidate.FillRatio:F3} symmetry={candidate.SymmetryScore:F3} " +
+            $"shape={candidate.ShapeScore:F3}");
     }
 }
 

@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
+using System.Text;
 
 namespace Fh6Aftermarket.Ocr;
 
@@ -47,22 +48,52 @@ public sealed class TesseractCliRecognizer
     private static readonly int[] PageSegmentationModes = [13, 7, 11];
     private readonly string _executablePath;
     private readonly string _tessdataPath;
+    private readonly string _languages;
+    private readonly IReadOnlyList<int> _pageSegmentationModes;
+    private readonly double _preparationScale;
+    private readonly int? _maximumPreparedWidth;
 
-    public TesseractCliRecognizer(string executablePath, string tessdataPath)
+    public TesseractCliRecognizer(
+        string executablePath,
+        string tessdataPath,
+        string languages = "eng",
+        IReadOnlyList<int>? pageSegmentationModes = null,
+        double preparationScale = 4,
+        int? maximumPreparedWidth = null)
     {
         _executablePath = executablePath;
         _tessdataPath = tessdataPath;
+        _languages = languages;
+        _pageSegmentationModes = pageSegmentationModes ?? PageSegmentationModes;
+        _preparationScale = preparationScale;
+        _maximumPreparedWidth = maximumPreparedWidth;
+
+        if (preparationScale is <= 0 or > 8)
+        {
+            throw new ArgumentOutOfRangeException(nameof(preparationScale));
+        }
+
+        if (maximumPreparedWidth is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumPreparedWidth));
+        }
 
         if (!Directory.Exists(_tessdataPath))
         {
             throw new DirectoryNotFoundException($"Tesseract language data was not found: {_tessdataPath}");
         }
 
-        if (!File.Exists(Path.Combine(_tessdataPath, "eng.traineddata")))
+        foreach (var language in languages.Split(
+                     '+',
+                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            throw new FileNotFoundException(
-                "English Tesseract language data was not found.",
-                Path.Combine(_tessdataPath, "eng.traineddata"));
+            var languagePath = Path.Combine(_tessdataPath, $"{language}.traineddata");
+            if (!File.Exists(languagePath))
+            {
+                throw new FileNotFoundException(
+                    $"Tesseract language data was not found: {language}",
+                    languagePath);
+            }
         }
     }
 
@@ -76,12 +107,16 @@ public sealed class TesseractCliRecognizer
         try
         {
             var imagePath = Path.Combine(temporaryDirectory, "vehicle-name.png");
-            using (var prepared = Prepare(source, region))
+            using (var prepared = Prepare(
+                       source,
+                       region,
+                       _preparationScale,
+                       _maximumPreparedWidth))
             {
                 prepared.Save(imagePath, ImageFormat.Png);
             }
 
-            var attempts = PageSegmentationModes
+            var attempts = _pageSegmentationModes
                 .Select(mode => Run(imagePath, mode))
                 .ToArray();
             return new OcrRecognition(attempts);
@@ -99,6 +134,8 @@ public sealed class TesseractCliRecognizer
             FileName = _executablePath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -108,7 +145,7 @@ public sealed class TesseractCliRecognizer
         startInfo.ArgumentList.Add("--tessdata-dir");
         startInfo.ArgumentList.Add(_tessdataPath);
         startInfo.ArgumentList.Add("-l");
-        startInfo.ArgumentList.Add("eng");
+        startInfo.ArgumentList.Add(_languages);
         startInfo.ArgumentList.Add("--psm");
         startInfo.ArgumentList.Add(pageSegmentationMode.ToString(CultureInfo.InvariantCulture));
         startInfo.ArgumentList.Add("-c");
@@ -158,7 +195,11 @@ public sealed class TesseractCliRecognizer
         return new OcrAttempt(pageSegmentationMode, string.Join(' ', words), bestConfidence);
     }
 
-    private static Bitmap Prepare(Bitmap source, Rectangle region)
+    private static Bitmap Prepare(
+        Bitmap source,
+        Rectangle region,
+        double preparationScale,
+        int? maximumPreparedWidth)
     {
         var safeRegion = Rectangle.Intersect(
             new Rectangle(0, 0, source.Width, source.Height),
@@ -168,10 +209,15 @@ public sealed class TesseractCliRecognizer
             throw new ArgumentOutOfRangeException(nameof(region), "OCR region is outside the source image.");
         }
 
-        const int scale = 4;
+        var scale = preparationScale;
+        if (maximumPreparedWidth is int widthLimit && safeRegion.Width * scale > widthLimit)
+        {
+            scale = widthLimit / (double)safeRegion.Width;
+        }
+
         var prepared = new Bitmap(
-            safeRegion.Width * scale,
-            safeRegion.Height * scale,
+            Math.Max(1, (int)Math.Round(safeRegion.Width * scale)),
+            Math.Max(1, (int)Math.Round(safeRegion.Height * scale)),
             PixelFormat.Format24bppRgb);
 
         using var graphics = Graphics.FromImage(prepared);

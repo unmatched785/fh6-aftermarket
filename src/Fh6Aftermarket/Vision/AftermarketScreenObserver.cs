@@ -16,9 +16,10 @@ public enum MarkerVisualState
 public sealed record MarkerCandidate(
     PixelPoint Center,
     PixelRect Bounds,
-    int PurplePixelCount,
-    double MeanSaturation,
-    double MeanValue);
+    int BrightPixelCount,
+    double FillRatio,
+    double SymmetryScore,
+    double ShapeScore);
 
 public sealed record ScreenObservation(
     int Width,
@@ -45,7 +46,7 @@ public static class AftermarketScreenObserver
 
         using var bitmap = To24Bit(source);
         var markerRegion = geometry.Scale(AnchorCatalog.AftermarketMarkerSearch);
-        var candidates = FindPurpleComponents(bitmap, markerRegion, geometry);
+        var candidates = FindGlobeComponents(bitmap, markerRegion, geometry);
         var cardCoverage = MeasureBrightNeutralCoverage(
             bitmap,
             geometry.Scale(AnchorCatalog.AftermarketLocationCard));
@@ -75,26 +76,16 @@ public static class AftermarketScreenObserver
             return MarkerVisualState.SelectedCard;
         }
 
-        var candidate = candidates[0];
-        var scale = geometry.Width / (double)ScreenGeometry.CanonicalWidth;
-        var canonicalPurpleArea = candidate.PurplePixelCount / (scale * scale);
-
-        return canonicalPurpleArea >= 460 &&
-               candidate.MeanSaturation >= 0.63 &&
-               candidate.MeanValue >= 0.42
-            ? MarkerVisualState.Clear
-            : MarkerVisualState.Translucent;
+        return MarkerVisualState.Clear;
     }
 
-    private static IReadOnlyList<MarkerCandidate> FindPurpleComponents(
+    private static IReadOnlyList<MarkerCandidate> FindGlobeComponents(
         Bitmap bitmap,
         PixelRect region,
         ScreenGeometry geometry)
     {
         var pixels = ReadPixels(bitmap);
         var mask = new bool[region.Width * region.Height];
-        var saturation = new double[mask.Length];
-        var value = new double[mask.Length];
 
         for (var y = 0; y < region.Height; y++)
         {
@@ -103,14 +94,8 @@ public static class AftermarketScreenObserver
                 var sourceX = region.X + x;
                 var sourceY = region.Y + y;
                 var color = pixels[sourceY * bitmap.Width + sourceX];
-                var hsv = ToHsv(color.R, color.G, color.B);
                 var index = y * region.Width + x;
-
-                saturation[index] = hsv.Saturation;
-                value[index] = hsv.Value;
-                mask[index] = hsv.Hue is >= 245 and <= 325 &&
-                              hsv.Saturation >= 0.28 &&
-                              hsv.Value >= 0.25;
+                mask[index] = Luminance(color) >= 0.78;
             }
         }
 
@@ -118,7 +103,7 @@ public static class AftermarketScreenObserver
         var queue = new int[mask.Length];
         var results = new List<MarkerCandidate>();
         var scale = geometry.Width / (double)ScreenGeometry.CanonicalWidth;
-        var minArea = Math.Max(40, (int)Math.Round(120 * scale * scale));
+        var minArea = Math.Max(35, (int)Math.Round(95 * scale * scale));
 
         for (var index = 0; index < mask.Length; index++)
         {
@@ -137,8 +122,7 @@ public static class AftermarketScreenObserver
             var minY = int.MaxValue;
             var maxX = int.MinValue;
             var maxY = int.MinValue;
-            var saturationSum = 0d;
-            var valueSum = 0d;
+            var componentPixels = new List<int>(256);
 
             while (head < tail)
             {
@@ -147,17 +131,21 @@ public static class AftermarketScreenObserver
                 var y = current / region.Width;
 
                 count++;
+                componentPixels.Add(current);
                 minX = Math.Min(minX, x);
                 minY = Math.Min(minY, y);
                 maxX = Math.Max(maxX, x);
                 maxY = Math.Max(maxY, y);
-                saturationSum += saturation[current];
-                valueSum += value[current];
-
-                Visit(x - 1, y);
-                Visit(x + 1, y);
-                Visit(x, y - 1);
-                Visit(x, y + 1);
+                for (var offsetY = -1; offsetY <= 1; offsetY++)
+                {
+                    for (var offsetX = -1; offsetX <= 1; offsetX++)
+                    {
+                        if (offsetX != 0 || offsetY != 0)
+                        {
+                            Visit(x + offsetX, y + offsetY);
+                        }
+                    }
+                }
             }
 
             if (count < minArea)
@@ -171,9 +159,11 @@ public static class AftermarketScreenObserver
             var canonicalHeight = height / scale;
             var aspect = width / (double)height;
 
-            if (canonicalWidth is < 20 or > 115 ||
-                canonicalHeight is < 20 or > 115 ||
-                aspect is < 0.60 or > 1.40)
+            var fillRatio = count / (double)(width * height);
+            if (canonicalWidth is < 28 or > 78 ||
+                canonicalHeight is < 28 or > 82 ||
+                aspect is < 0.68 or > 1.32 ||
+                fillRatio is < 0.09 or > 0.58)
             {
                 continue;
             }
@@ -184,12 +174,47 @@ public static class AftermarketScreenObserver
                 width,
                 height);
 
+            var center = new PixelPoint(
+                bounds.X + bounds.Width / 2,
+                bounds.Y + bounds.Height / 2);
+            var squareness = 1 - Math.Min(1, Math.Abs(1 - aspect));
+            var localMask = new bool[width * height];
+            foreach (var pixel in componentPixels)
+            {
+                var pixelX = pixel % region.Width;
+                var pixelY = pixel / region.Width;
+                localMask[(pixelY - minY) * width + pixelX - minX] = true;
+            }
+
+            var horizontalMatches = 0;
+            var verticalMatches = 0;
+            foreach (var pixel in componentPixels)
+            {
+                var pixelX = pixel % region.Width - minX;
+                var pixelY = pixel / region.Width - minY;
+                if (localMask[pixelY * width + (width - 1 - pixelX)])
+                {
+                    horizontalMatches++;
+                }
+
+                if (localMask[(height - 1 - pixelY) * width + pixelX])
+                {
+                    verticalMatches++;
+                }
+            }
+
+            var symmetryScore = (horizontalMatches + verticalMatches) / (2d * count);
+            var shapeScore = squareness * 0.25 +
+                             Math.Min(1, fillRatio / 0.30) * 0.15 +
+                             symmetryScore * 0.60;
+
             results.Add(new MarkerCandidate(
-                new PixelPoint(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2),
+                center,
                 bounds,
                 count,
-                saturationSum / count,
-                valueSum / count));
+                fillRatio,
+                symmetryScore,
+                shapeScore));
 
             void Visit(int neighborX, int neighborY)
             {
@@ -208,14 +233,18 @@ public static class AftermarketScreenObserver
             }
         }
 
-        var expectedCenter = geometry.Scale(AnchorCatalog.AftermarketMarkerExpectedCenter);
-        var maximumDistance = 100 * scale;
-
         return results
-            .Where(candidate => Distance(candidate.Center, expectedCenter) <= maximumDistance)
-            .OrderByDescending(candidate => candidate.PurplePixelCount)
+            .Where(candidate =>
+                candidate.SymmetryScore >= 0.86 &&
+                candidate.ShapeScore >= 0.90)
+            .OrderByDescending(candidate => candidate.ShapeScore)
+            .ThenByDescending(candidate => candidate.BrightPixelCount)
+            .Take(1)
             .ToArray();
     }
+
+    private static double Luminance(RgbColor color) =>
+        (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255d;
 
     private static double Distance(PixelPoint left, PixelPoint right)
     {

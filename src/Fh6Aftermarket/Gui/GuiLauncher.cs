@@ -38,9 +38,18 @@ public static class GuiLauncher
                 var analyzer = new AftermarketMapCardAnalyzer(
                     new TesseractCliRecognizer(executable, tessdataPath),
                     new TargetTextMatcher(catalog));
+                var languageDetector = new PauseMenuLanguageDetector(
+                    new TesseractCliRecognizer(
+                        executable,
+                        tessdataPath,
+                        "eng+kor",
+                        [11],
+                        preparationScale: 1,
+                        maximumPreparedWidth: 1600));
                 var controller = new ValidationSessionController(
                     safety,
                     analyzer,
+                    languageDetector,
                     Path.Combine(repoRoot, "logs"));
 
                 Application.Run(new AftermarketMainForm(controller));
