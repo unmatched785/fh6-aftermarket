@@ -362,8 +362,9 @@ void CheckTesseractInstallationLocator()
         var scoopTessdata = Path.Combine(
             scoopRoot,
             "apps",
-            "tesseract-languages",
-            "current");
+            "tesseract",
+            "current",
+            "tessdata");
         WriteFakeInstallation(scoopExecutable, scoopTessdata);
         var scoopInstallation = TesseractInstallationLocator.Locate(
             new TesseractSearchContext(
@@ -405,9 +406,12 @@ void CheckTesseractInstallationLocator()
         catch (FileNotFoundException exception)
         {
             if (!exception.Message.Contains("FH6_TESSERACT_EXE", StringComparison.Ordinal) ||
-                !exception.Message.Contains("FH6_TESSDATA_DIR", StringComparison.Ordinal))
+                !exception.Message.Contains("FH6_TESSDATA_DIR", StringComparison.Ordinal) ||
+                !exception.Message.Contains("전체 언어팩 추가 설치가 필요하지 않습니다", StringComparison.Ordinal))
             {
-                failures.Add("Missing Tesseract guidance must name both override environment variables.");
+                failures.Add(
+                    "Missing Tesseract guidance must reject full language-pack installation " +
+                    "and name both override environment variables.");
             }
         }
     }

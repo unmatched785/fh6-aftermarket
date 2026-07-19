@@ -116,26 +116,25 @@ OCR에서 얻었다고 가정한 텍스트를 목표 목록과 대조할 수 있
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --targets .\config\targets.json --match-text "Lambo Sesto"
 ```
 
-실제 차량 화면 OCR에는 Tesseract 실행 파일이 필요합니다. 릴리스 ZIP 사용자는 언어 데이터가
-이미 포함되어 있으므로 Tesseract 본체만 설치하면 됩니다.
+실제 차량 화면 OCR에는 Tesseract 실행 파일이 필요합니다. 릴리스 ZIP에는 영어와 한국어
+데이터만 이미 포함되어 있으므로 별도 언어팩을 설치할 필요가 없습니다.
 
 ```powershell
 scoop install tesseract
 ```
 
-소스 체크아웃에서 직접 실행하며 동봉 언어 데이터가 없을 때만 다음 패키지도 설치합니다.
-
-```powershell
-scoop install tesseract-languages
-```
+Scoop이 전체 `tesseract-languages` 패키지를 제안해도 설치하지 마세요. 여기에는 스페인어를
+비롯한 불필요한 언어가 모두 들어 있습니다. 소스 체크아웃에서 직접 실행할 때는 릴리스 ZIP의
+`tessdata` 폴더를 사용하거나, 영어 `eng.traineddata`와 한국어 `kor.traineddata` 두 파일만
+있는 폴더를 `FH6_TESSDATA_DIR`로 지정합니다.
 
 표준 Program Files 설치와 사용자 지정 `SCOOP` 루트도 자동으로 찾습니다. 그래도 찾지 못하는
 특수 설치는 `FH6_TESSERACT_EXE`에 `tesseract.exe` 전체 경로를, `FH6_TESSDATA_DIR`에
 `eng.traineddata`와 `kor.traineddata`가 들어 있는 폴더를 지정할 수 있습니다. 시작 실패 창에는
 앱이 확인한 경로와 이 두 환경 변수 이름이 함께 표시됩니다.
 
-저장된 애프터마켓 화면에서 판매 배너를 세고 차량명을 판독할 수 있습니다. 앱은 Scoop
-언어 데이터 경로를 명시적으로 전달하므로 전역 `TESSDATA_PREFIX` 설정은 필요하지 않습니다.
+저장된 애프터마켓 화면에서 판매 배너를 세고 차량명을 판독할 수 있습니다. 앱은 선택한
+영어·한국어 데이터 경로를 명시적으로 전달하므로 전역 `TESSDATA_PREFIX` 설정은 필요하지 않습니다.
 
 ```powershell
 C:\Users\user\scoop\apps\dotnet-sdk\current\dotnet.exe run --project .\src\Fh6Aftermarket\Fh6Aftermarket.csproj -- --analyze-aftermarket-image .\captures\aftermarket.png --targets .\config\targets.json

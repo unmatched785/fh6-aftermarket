@@ -107,8 +107,6 @@ public static class TesseractInstallationLocator
 
         foreach (var scoopRoot in ScoopRoots(context))
         {
-            Add(candidates, scoopRoot, "apps", "tesseract-languages", "current");
-            Add(candidates, scoopRoot, "apps", "tesseract-languages", "current", "tessdata");
             Add(candidates, scoopRoot, "apps", "tesseract", "current", "tessdata");
         }
 
@@ -201,6 +199,7 @@ public static class TesseractInstallationLocator
         return
             $"Tesseract 구성요소를 자동으로 찾지 못했습니다: {string.Join(", ", missing)}.\n\n" +
             "표준 설치 폴더, Scoop 실제 루트, PATH, 앱 폴더를 모두 확인했습니다.\n" +
+            "배포 ZIP은 영어·한국어 데이터를 포함하므로 전체 언어팩 추가 설치가 필요하지 않습니다.\n" +
             "직접 지정하려면 환경 변수 FH6_TESSERACT_EXE와 FH6_TESSDATA_DIR을 설정하세요.\n\n" +
             $"확인한 실행 파일 경로:\n- {string.Join("\n- ", executableCandidates)}\n\n" +
             $"확인한 언어 데이터 경로:\n- {string.Join("\n- ", tessdataCandidates)}";
